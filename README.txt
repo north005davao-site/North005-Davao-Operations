@@ -1,9 +1,8 @@
-NORTH005 DAVAO ERP - DEPLOY STEPS
-1. SUPABASE (one-time): Authentication > Sign In / Providers > Email > turn OFF "Confirm email" > Save.
-2. Create the FIRST account yourself on the site (Sign Up). It becomes the Operations Administrator automatically.
-3. GitHub: create a new repo, upload everything in this folder (index.html + assets folder).
-4. Vercel: Add New > Project > import the repo > Framework: Other > Deploy.
-5. Domain: Vercel project > Settings > Domains > add your domain and follow the DNS records shown.
-Staff sign up on the site, then you approve them and assign a role in USER & ACCESS MANAGEMENT.
+NORTH005 DAVAO ERP - FILES
+Upload ALL of these to GitHub (replace the old ones): index.html, modules.js, sales.js, and the assets folder.
+Vercel redeploys automatically. Then hard-refresh the site (Ctrl+Shift+R) or clear site data on your phone.
 
-UPDATE (Phase 2a): upload index.html and modules.js (plus assets) to GitHub again, replacing the old ones. Vercel redeploys automatically.
+FIRST-TIME SETUP FOR SALES & COLLECTION (Administrator)
+1. MASTER REGISTRY > Upload Masterlist (Excel)
+2. MASTER REGISTRY > Import Areas (Excel report): choose your current DDN or SAMAL report; sets each outlet's collector. Do it once for each file.
+3. SALES & COLLECTION > Import Accounting File (Excel) every day.

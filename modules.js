@@ -8,6 +8,29 @@ const tx=v=>{const s=String(v??"").trim();return s||null};
 const bc=v=>{const s=tx(v);return s?s.toUpperCase().replace(/\s+/g,"-"):null};
 const natural=(a,b)=>(a.municipality||"").localeCompare(b.municipality||"")||(parseInt((a.booth_code||"").replace(/\D/g,""))||0)-(parseInt((b.booth_code||"").replace(/\D/g,""))||0);
 
+const PG={},SIZES=[10,15,20,25,50,100];
+const pgState=k=>PG[k]||(PG[k]={page:1,size:10});
+function paginate(k,rows){const st=pgState(k),total=rows.length,pages=Math.max(1,Math.ceil(total/st.size));st.page=Math.min(Math.max(1,st.page),pages);
+  const a=total?(st.page-1)*st.size+1:0,b=Math.min(total,st.page*st.size),nums=[];for(let p=1;p<=pages;p++)if(p==1||p==pages||Math.abs(p-st.page)<=1)nums.push(p);
+  let h="",prev=0;nums.forEach(p=>{if(prev&&p-prev>1)h+='<span class="chip">…</span>';h+=`<button class="chip2${p==st.page?" on":""}" data-pg="${p}">${p}</button>`;prev=p});
+  const bar=total>10?`<div class="pg"><span class="chip">${a}–${b} of ${total}</span><span class="pgc"><span class="chip">Rows</span><select data-pgsize>${SIZES.map(s=>`<option${s==st.size?" selected":""}>${s}</option>`).join("")}</select><button class="chip2" data-pg="prev"${st.page<=1?" disabled":""}>‹</button>${h}<button class="chip2" data-pg="next"${st.page>=pages?" disabled":""}>›</button></span></div>`:"";
+  return{st,slice:rows.slice((st.page-1)*st.size,st.page*st.size),bar}}
+function bindPager(root,st,redraw){root.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>{const v=b.dataset.pg;st.page=v=="prev"?st.page-1:v=="next"?st.page+1:+v;redraw()});const s=root.querySelector("[data-pgsize]");if(s)s.onchange=()=>{st.size=+s.value;st.page=1;redraw()}}
+window.PAGER={paginate,bind:bindPager,reset:k=>{pgState(k).page=1}};window.MUNI=MUNI;
+
+function parseAreas(X,buf){
+  const wb=X.read(buf,{type:"array"}),out=new Map();
+  for(const name of wb.SheetNames){
+    if(!/\sAREA$/i.test(name.trim()))continue;
+    const col=name.trim().replace(/\s+NEW\s+AREA$/i,"").replace(/\s+AREA$/i,"").trim().toUpperCase();
+    const rows=X.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true}),wide=/^NO\.?$/i.test(String((rows[1]||[])[0]||"").trim());
+    for(const r of rows.slice(2)){let code,addr,teller;
+      if(wide){code=bc(r[1]);addr=tx(r[2]);teller=tx(r[4]);if(!code||!/^DDN-\d+$/.test(code))continue}
+      else{const mm=String(r[0]??"").match(/^\s*DDN[\s\-]*(\d+)\s*[-–]?\s*(.*)$/i);if(!mm)continue;code="DDN-"+mm[1];addr=tx(mm[2]);teller=tx(r[1])}
+      if(teller&&/^0$/.test(teller))teller=null;
+      out.set(code,{booth_code:code,collector:col,address:addr,sr_name:teller,wide})}}
+  return[...out.values()]}
+
 function parseMasterlist(X,buf){
   const wb=X.read(buf,{type:"array"}),map=new Map(),rel=new Map();
   for(const name of wb.SheetNames){
@@ -61,20 +84,30 @@ function edit(kind,row,done){
 
 async function registry(v){
   const adm=me.role=="admin";
-  v.innerHTML=`<div class="tbar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
+  v.innerHTML=`<div class="tbar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label><label class="ghost up">Import Areas (Excel report)<input type="file" id="ra2" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
   [S.O,S.R]=await Promise.all([all("registry_outlets"),all("registry_relievers")]);S.O.sort(natural);S.R.sort((a,b)=>a.name.localeCompare(b.name));
   const draw=()=>{
     v.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t==S.tab));$("#rm").classList.toggle("hide",S.tab!="o");
     const q=S.q.toLowerCase(),has=r=>Object.values(r).some(x=>x!=null&&String(x).toLowerCase().includes(q));
     const rows=(S.tab=="o"?S.O.filter(r=>(!S.m||r.municipality==S.m)):S.R).filter(r=>!q||has(r));$("#rc").textContent=rows.length+" record"+(rows.length==1?"":"s");
     if(!rows.length){$("#rt").innerHTML=`<div class="empty"><b>${S.tab=="o"?"Master Registry":"Relievers"}</b><br>No records yet.${adm?" Use “Upload Masterlist (Excel)” to import, or “+ Add”.":""}</div>`;return}
+    const pg=PAGER.paginate("reg_"+S.tab,rows);
     const head=S.tab=="o"?["Booth code","Sales representative","Municipality","Barangay","Purok","Collector","Status","Contact","POS no.","Coordinates"]:["Name","Contact","Municipality","Status"];
     const cell=r=>S.tab=="o"?[`${r.needs_details?"⚠ ":""}<b>${esc(r.booth_code)}</b>`,esc(r.sr_name),pill(r.municipality),esc(r.barangay),esc(r.purok),esc(r.collector),esc(r.status),esc(r.sr_contact),esc(r.pos_no),r.lat!=null?r.lat+", "+r.lng:'<span style="color:var(--red)">missing</span>']:[esc(r.name),esc(r.contact),esc(r.municipality),esc(r.status)];
-    $("#rt").innerHTML=`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r,i)=>`<tr data-i="${r.id}"${adm?' style="cursor:pointer"':""}>${cell(r).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    $("#rt").innerHTML=`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${pg.slice.map((r,i)=>`<tr data-i="${r.id}"${adm?' style="cursor:pointer"':""}>${cell(r).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`+pg.bar;PAGER.bind($("#rt"),pg.st,draw);
     if(adm)$("#rt").querySelectorAll("tr[data-i]").forEach(tr=>tr.onclick=()=>edit(S.tab,(S.tab=="o"?S.O:S.R).find(x=>x.id==tr.dataset.i),()=>registry(v)))};
-  v.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;draw()});
-  $("#rq").oninput=e=>{S.q=e.target.value;draw()};$("#rm").onchange=e=>{S.m=e.target.value;draw()};
+  v.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;PAGER.reset("reg_"+S.tab);draw()});
+  $("#rq").oninput=e=>{S.q=e.target.value;PAGER.reset("reg_"+S.tab);draw()};$("#rm").onchange=e=>{S.m=e.target.value;PAGER.reset("reg_"+S.tab);draw()};
   if(adm){$("#ra").onclick=()=>edit(S.tab,{},()=>registry(v));
+    $("#ra2").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const p=$("#rp");p.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">Reading file…</div>';
+      try{const list=parseAreas(XLSX,await f.arrayBuffer());if(!list.length)throw 0;const ex=new Map(S.O.map(o=>[o.booth_code,o])),upd=list.filter(x=>ex.has(x.booth_code)),add=list.filter(x=>!ex.has(x.booth_code)),by={};list.forEach(x=>by[x.collector]=(by[x.collector]||0)+1);
+        p.innerHTML=`<div class="box" style="max-width:none;margin-bottom:12px"><b>Areas found in your report</b><div style="margin:6px 0">${Object.entries(by).map(([k,n])=>`<span class="pill" style="background:var(--gold)">${esc(k)}</span> ${n}`).join(" &nbsp; ")}</div><div>${upd.length} existing booth(s) will get their collector.</div>${add.length?`<div style="margin-top:4px">${add.length} booth(s) are not in the registry and will be added with a ⚠ “Needs details” flag: ${add.map(x=>esc(x.booth_code)).join(", ")}</div>`:""}<p style="color:var(--mu);font-size:13px">Nothing else is changed or deleted.</p><button class="btn" id="ok2">Confirm</button> <button class="ghost" id="no2">Cancel</button><span id="pg2" class="chip" style="margin-left:10px"></span></div>`;
+        $("#no2").onclick=()=>p.innerHTML="";
+        $("#ok2").onclick=async()=>{S.busy=true;$("#ok2").disabled=true;try{
+          const U=upd.map(x=>({booth_code:x.booth_code,municipality:ex.get(x.booth_code).municipality,collector:x.collector})),N=add.map(x=>({booth_code:x.booth_code,municipality:normMuni(x.address||"")||(x.wide?"SAMAL":"TAGUM"),sr_name:x.sr_name,address:x.address,collector:x.collector,needs_details:true,status:"ACTIVE"}));
+          for(const g of [U,N])for(let i=0;i<g.length;i+=200){const{error}=await sb.from("registry_outlets").upsert(g.slice(i,i+200),{onConflict:"booth_code"});if(error)throw error}
+          S.busy=false;registry(v)}catch(x){S.busy=false;$("#pg2").textContent="Failed. Nothing more was changed.";$("#ok2").disabled=false}}}
+      catch(x){p.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">I could not find collector area sheets (names ending in “AREA”) in that file.</div>'}};
     $("#ru").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const p=$("#rp");p.innerHTML='<div class="box">Reading file…</div>';
       try{const r=parseMasterlist(XLSX,await f.arrayBuffer());if(!r.outlets.length&&!r.relievers.length)throw 0;
         const by={};r.outlets.forEach(o=>by[o.municipality]=(by[o.municipality]||0)+1);const nc=r.outlets.filter(o=>o.lat==null);
@@ -111,6 +144,6 @@ async function ets(v){
   else $("#view").insertAdjacentHTML("beforeend",`<div class="empty" style="margin-top:12px">No outlets with coordinates yet. Upload the masterlist in MASTER REGISTRY to see pins here.</div>`);
   lab();setTimeout(()=>map.invalidateSize(),100);mapState={map};subscribe()}
 
-window.parseMasterlist=parseMasterlist;
+window.parseMasterlist=parseMasterlist;window.parseAreas=parseAreas;
 window.MODS={"MASTER REGISTRY":registry,"ETS LIVE TRACKING":ets};
 })();
