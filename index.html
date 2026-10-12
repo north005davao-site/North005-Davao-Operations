@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><title>North005 Davao ERP</title>
+<html lang="en"><head><meta charset="utf-8"><script src="modules.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><title>North005 Davao ERP</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
 :root{--bg:#0a1a3f;--panel:#10265a;--line:#24407f;--tx:#eef2ff;--mu:#9fb0d8;--gold:#e0b13a;--red:#d1203a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -49,7 +49,18 @@ header h3{margin:0;flex:1;font-size:17px}#menu{display:none}
 .box input,.box select{background:var(--bg);color:var(--tx);border-color:var(--line)}.box label{color:var(--mu)}.box .btn{width:auto;padding:10px 18px}
 .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--mu);font-weight:600}
 @media(max-width:800px){aside{position:fixed;z-index:20;inset:0 auto 0 0;transform:translateX(-100%);transition:.25s;padding-top:env(safe-area-inset-top,0px)}aside.open{transform:none}#menu{display:block}}
-.lk{display:block;text-align:center;margin-top:8px;font-size:13px;color:var(--gold);cursor:pointer}.h{margin:18px 0 8px}.h:first-child{margin-top:0}</style></head><body>
+.lk{display:block;text-align:center;margin-top:8px;font-size:13px;color:var(--gold);cursor:pointer}.h{margin:18px 0 8px}.h:first-child{margin-top:0}.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.bar input,.bar select{width:auto;flex:1;min-width:140px;max-width:260px;background:var(--panel);color:var(--tx);border-color:var(--line)}
+.chip2{padding:7px 14px;border:1px solid var(--line);background:none;color:var(--tx);border-radius:20px;cursor:pointer}.chip2.on{background:var(--gold);color:#1a1300;border-color:var(--gold);font-weight:600}
+.up{cursor:pointer}.pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;color:#111;font-weight:600}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--tx);padding:18px;width:min(540px,94vw);max-height:90vh;overflow:auto}dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var(--line)}dialog label{color:var(--mu)}dialog .btn{width:auto;padding:10px 20px;margin-top:0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}@media(max-width:560px){.g2{grid-template-columns:1fr}}
+#map{height:calc(100dvh - 190px);min-height:420px;border-radius:14px;border:1px solid var(--line);z-index:0}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}.leg small{color:var(--mu)}
+.leaflet-tooltip.bl{font-weight:700;font-size:11px;padding:1px 6px;background:#0a1a3f;color:#fff;border:1px solid #e0b13a;border-radius:6px}.leaflet-tooltip-top.bl:before{border-top-color:#e0b13a}.nolab .bl{display:none}
+.pp{min-width:190px;color:#0e1c43}.pp b{font-size:15px}.pp div{margin-top:3px;font-size:13px}
+</style></head><body>
 
 <section id="auth" class="hide"><div class="card">
 <img src="assets/logo.png" alt="North-005"><h1>North005 Davao ERP</h1><p class="s">Kugihan · Masaligan · Maalagaron</p>
@@ -135,6 +146,7 @@ function live(){if(ch)sb.removeChannel(ch);
   .on("postgres_changes",{event:"*",schema:"public",table:"password_requests"},()=>{if(cur=="USER & ACCESS MANAGEMENT")go(cur)}).subscribe()}
 async function go(n){cur=n;$("#ttl").textContent=n;document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("on",b.dataset.n==n));
   const v=$("#view");
+  if(window.MODS&&MODS[n])return MODS[n](v);
   if(n==ACC)return acct(v);if(n=="USER & ACCESS MANAGEMENT")return users(v);if(n=="BACK UP & RESTORE")return backup(v);
   v.innerHTML=`<div class="empty"><b>${esc(n)}</b><br>No records yet. This module is empty and ready to be configured.</div>`}
 

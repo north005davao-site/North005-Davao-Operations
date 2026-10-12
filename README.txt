@@ -5,3 +5,5 @@ NORTH005 DAVAO ERP - DEPLOY STEPS
 4. Vercel: Add New > Project > import the repo > Framework: Other > Deploy.
 5. Domain: Vercel project > Settings > Domains > add your domain and follow the DNS records shown.
 Staff sign up on the site, then you approve them and assign a role in USER & ACCESS MANAGEMENT.
+
+UPDATE (Phase 2a): upload index.html and modules.js (plus assets) to GitHub again, replacing the old ones. Vercel redeploys automatically.
