@@ -61,7 +61,7 @@ function edit(kind,row,done){
 
 async function registry(v){
   const adm=me.role=="admin";
-  v.innerHTML=`<div class="bar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
+  v.innerHTML=`<div class="tbar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
   [S.O,S.R]=await Promise.all([all("registry_outlets"),all("registry_relievers")]);S.O.sort(natural);S.R.sort((a,b)=>a.name.localeCompare(b.name));
   const draw=()=>{
     v.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t==S.tab));$("#rm").classList.toggle("hide",S.tab!="o");
@@ -89,7 +89,7 @@ async function registry(v){
   draw();subscribe()}
 
 async function ets(v){
-  v.innerHTML=`<div class="bar" id="lg"></div><div id="map"></div>`;
+  v.innerHTML=`<div class="tbar" id="lg"></div><div id="map"></div>`;
   const O=(await all("registry_outlets")).filter(o=>o.lat!=null),miss=0;
   if(mapState){mapState.map.remove();mapState=null}
   const map=L.map("map",{zoomControl:true}).setView([7.45,125.8],10);

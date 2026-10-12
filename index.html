@@ -49,8 +49,8 @@ header h3{margin:0;flex:1;font-size:17px}#menu{display:none}
 .box input,.box select{background:var(--bg);color:var(--tx);border-color:var(--line)}.box label{color:var(--mu)}.box .btn{width:auto;padding:10px 18px}
 .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--mu);font-weight:600}
 @media(max-width:800px){aside{position:fixed;z-index:20;inset:0 auto 0 0;transform:translateX(-100%);transition:.25s;padding-top:env(safe-area-inset-top,0px)}aside.open{transform:none}#menu{display:block}}
-.lk{display:block;text-align:center;margin-top:8px;font-size:13px;color:var(--gold);cursor:pointer}.h{margin:18px 0 8px}.h:first-child{margin-top:0}.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
-.bar input,.bar select{width:auto;flex:1;min-width:140px;max-width:260px;background:var(--panel);color:var(--tx);border-color:var(--line)}
+.sub2{text-align:center;color:#eef2ff;font-weight:600;margin:4px 0 6px}.lk{display:block;text-align:center;margin-top:8px;font-size:13px;color:var(--gold);cursor:pointer}.h{margin:18px 0 8px}.h:first-child{margin-top:0}.tbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.tbar input,.tbar select{width:auto;flex:1;min-width:140px;max-width:260px;background:var(--panel);color:var(--tx);border-color:var(--line)}
 .chip2{padding:7px 14px;border:1px solid var(--line);background:none;color:var(--tx);border-radius:20px;cursor:pointer}.chip2.on{background:var(--gold);color:#1a1300;border-color:var(--gold);font-weight:600}
 .up{cursor:pointer}.pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;color:#111;font-weight:600}
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--tx);padding:18px;width:min(540px,94vw);max-height:90vh;overflow:auto}dialog::backdrop{background:rgba(0,0,0,.55)}
@@ -64,13 +64,13 @@ dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var
 
 <section id="auth" class="hide"><div class="card">
 <img src="assets/logo.png" alt="North-005"><h1>North005 Davao ERP</h1><p class="s">Kugihan · Masaligan · Maalagaron</p>
-<div class="tabs" id="tabs"><button id="tL" class="on">Login</button><button id="tS">Sign Up</button></div>
+<div class="sub2" id="sub">Sign in to your account</div>
 <div id="fN" class="hide"><label>Full name</label><input id="name" autocomplete="name"></div>
 <div id="fU"><label>Username</label><input id="user" autocomplete="username" autocapitalize="off"></div>
 <div id="fP"><label id="pwl">Password</label><input id="pw" type="password" autocomplete="current-password"></div>
 <div id="fC" class="hide"><label>Confirm password</label><input id="pw2" type="password" autocomplete="new-password"></div>
 <button class="btn" id="go">Login</button><div class="msg" id="msg"></div>
-<a class="lk" id="fg" href="#" onclick="return false">Forgot password?</a><a class="lk hide" id="bk" href="#" onclick="return false">← Back to login</a>
+<a class="lk " id="sw" href="#" onclick="return false">No account yet? Sign up</a><a class="lk" id="fg" href="#" onclick="return false">Forgot password?</a><a class="lk hide" id="bk" href="#" onclick="return false">← Back to login</a>
 </div></section>
 
 <section id="intro" class="hide"><div><div class="lg"><img src="assets/logo.png" alt=""></div><h2 id="wl">Welcome</h2><div class="bar"><i></i></div></div></section>
@@ -98,12 +98,13 @@ const uid=s=>s.trim().toLowerCase();
 const em=u=>u+"@north005.app";
 
 function tab(m){mode=m;
-  $("#tL").classList.toggle("on",m=="L");$("#tS").classList.toggle("on",m=="S");
   $("#fN").classList.toggle("hide",m!="S");$("#fU").classList.toggle("hide",m=="C");$("#fP").classList.toggle("hide",m=="F");
-  $("#fC").classList.toggle("hide",m!="S"&&m!="C");$("#fg").classList.toggle("hide",m!="L");$("#bk").classList.toggle("hide",m!="F"&&m!="C");$("#tabs").classList.toggle("hide",m=="F"||m=="C");
+  $("#fC").classList.toggle("hide",m!="S"&&m!="C");$("#fg").classList.toggle("hide",m!="L");$("#bk").classList.toggle("hide",m!="F"&&m!="C");
+  $("#sw").classList.toggle("hide",m=="F"||m=="C");$("#sw").textContent=m=="S"?"Already have an account? Login":"No account yet? Sign up";
   $("#go").textContent={L:"Login",S:"Create Account",F:"Send Request to Administrator",C:"Set New Password"}[m];
+  $("#sub").textContent={L:"Sign in to your account",S:"Create your account",F:"Request a password reset",C:"Choose a new password"}[m];
   $("#pwl").textContent=m=="C"?"New password":"Password";setMsg("")}
-$("#tL").onclick=()=>tab("L");$("#tS").onclick=()=>tab("S");$("#fg").onclick=()=>tab("F");$("#bk").onclick=async()=>{if(mode=="C"){await sb.auth.signOut()}tab("L")};
+$("#sw").onclick=()=>tab(mode=="S"?"L":"S");$("#fg").onclick=()=>tab("F");$("#bk").onclick=async()=>{if(mode=="C"){await sb.auth.signOut()}tab("L")};
 
 async function loadMe(){const{data:{user}}=await sb.auth.getUser();if(!user)return null;
   const{data}=await sb.from("profiles").select("*").eq("id",user.id).single();me=data;return data}
