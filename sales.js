@@ -1,5 +1,7 @@
 (()=>{
-const SV={DDN:["PETER JOHN CARRILLO","MARK JUSUA"],SAMAL:["PETER JOHN CARRILLO"]};
+const SV={DDN:["PETER JOHN CARRILLO"],SAMAL:["PETER JOHN CARRILLO"]};
+const CC={JOHN:["FFFF0000","FFBF0000"],JAYSON:["FFE97132","FFE97132"],MUHLEN:["FF3399FF","FF02A5E3"],JASON:["FF92D050","FF92D04F"],"MAC²":["FFFFFF00","FFFFC000"],NELSON:["FFFF0000","FFFF0000"],CHARLIE:["FF215F9A","FF215F9A"]},PAL=[["FFFFC000","FFFFC000"],["FF00B0F0","FF00B0F0"],["FF7030A0","FF7030A0"],["FFFF66CC","FFFF66CC"]],ccol=(n,i)=>CC[n]||PAL[i%PAL.length];
+let OFF=false;
 const LABEL={DDN:"DAVAO DEL NORTE",SAMAL:"SAMAL"};
 const areaOf=m=>m=="SAMAL"?"SAMAL":"DDN";
 const salary=b=>!(b>=100)||b>=61000?0:b<5000?250:300+10*(Math.floor(b/1000)-5);
@@ -35,9 +37,9 @@ function addr(o){return o.address||[o.purok,o.barangay].filter(Boolean).join(", 
 function compute(O,rows){
   const eod=new Map(rows.map(r=>[r.code,r])),have=new Set(O.map(o=>o.booth_code));
   const A={DDN:{outlets:[]},SAMAL:{outlets:[]}};
-  for(const o of O){const r=eod.get(o.booth_code);if(o.status!="ACTIVE"&&!r)continue;
+  for(const o of O){const r=eod.get(o.booth_code);
     const bets=r?r.gross:0,pay=r?r.lessPay:0,comm=bets*0.125;
-    A[areaOf(o.municipality)].outlets.push({code:o.booth_code,teller:o.sr_name||"",address:addr(o),collector:o.collector||"",bets,pay,comm,pal:bets-pay-comm,sal:salary(bets)})}
+    A[areaOf(o.municipality)].outlets.push({code:o.booth_code,teller:o.sr_name||"",address:addr(o),collector:o.collector||"",off:o.status!="ACTIVE"||!o.sr_name,bets,pay,comm,pal:bets-pay-comm,sal:salary(bets)})}
   for(const k in A){const a=A[k];a.outlets.sort(nat);
     a.collectors=[...new Set(a.outlets.map(o=>o.collector).filter(Boolean))];
     const bets=a.outlets.reduce((s,o)=>s+o.bets,0),pay=a.outlets.reduce((s,o)=>s+o.pay,0),comm=bets*0.125;
@@ -49,48 +51,48 @@ const msgText=(d,t)=>`Good day po\nFor your review\n${dmy(d)}\n\nTotal Bets: ${p
 
 // ---------------- Excel ----------------
 const PESO='_-"₱"* #,##0.00_-;\\-"₱"* #,##0.00_-;_-"₱"* "-"??_-;_-@_-';
-const FN=(sz,b)=>({name:"Arial",size:sz,bold:!!b}),TH={style:"thin"},BR={top:TH,left:TH,bottom:TH,right:TH};
+const FN=(sz,b,c)=>({name:"Arial",size:sz,bold:!!b,...(c?{color:{argb:c}}:{})}),TH={style:"thin"},BR={top:TH,left:TH,bottom:TH,right:TH};
 const fillc=a=>({type:"pattern",pattern:"solid",fgColor:{argb:a}});
-function put(ws,a,v,o={}){const c=ws.getCell(a);c.value=o.fx!==undefined?{formula:o.fx,result:o.res}:v;c.font=o.font||FN(11);if(o.fmt)c.numFmt=o.fmt;if(o.fill)c.fill=fillc(o.fill);c.alignment={horizontal:o.al||undefined,vertical:"middle"};if(!o.nb)c.border=BR;return c}
+function put(ws,a,v,o={}){const c=ws.getCell(a);c.value=o.fx!==undefined?{formula:o.fx,result:o.res}:v;c.font=o.font||FN(11);if(OFF&&!o.nb)c.font={...c.font,color:{argb:"FFFF0000"}};if(o.fmt)c.numFmt=o.fmt;if(o.fill)c.fill=fillc(o.fill);c.alignment={horizontal:o.al||undefined,vertical:"middle"};if(!o.nb)c.border=BR;return c}
 function widths(ws,w){Object.entries(w).forEach(([k,v])=>ws.getColumn(k).width=v)}
 
 function sheet1(wb,snap,area,eod,L){
   const A=snap.areas[area],ws=wb.addWorksheet("Sheet1"),n=A.outlets.length,k=A.collectors.length,sam=area=="SAMAL";
   const first=3,last=2+n,cf=last+1,cl=last+k,tot=cl+1,cm=tot+1,gr=tot+2,t1=tot+8,t2=t1+56,rowOf={};
-  put(ws,"C1","DATE",{font:FN(14,1),al:"center"});put(ws,"D1","DATE",{font:FN(14,1),al:"center"});
+  put(ws,"C1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});put(ws,"D1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});ws.getRow(1).height=30;ws.getRow(2).height=20.25;
   put(ws,"E1",new Date(snap.date+"T00:00:00Z"),{font:FN(24,1),fmt:"d-mmm-yy",fill:"FFA5C9EC",al:"center"});
   ws.mergeCells("F1:J1");put(ws,"F1",LABEL[area],{font:FN(22,1),fill:"FFFFFF00",al:"center"});
   ["NO.","BOOTH CODE","ADDRESS","OUTLETS","TELLER","TOTAL BETS",sam?"PAY OUT":"PAYOUTS","COMMISSION","PALAWAN","SALARY"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"2",h,{font:FN(i<5?14:16,1),al:"center"}));
   const rng=c=>`'${eod}'!$B$2:$G$1500,${c},FALSE`;
-  A.outlets.forEach((o,i)=>{const r=first+i;rowOf[o.code]=r;
-    put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{font:FN(11)});put(ws,"C"+r,o.address,{font:FN(11)});
-    put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address,font:FN(11)});put(ws,"E"+r,o.teller,{font:FN(11)});
+  A.outlets.forEach((o,i)=>{const r=first+i;rowOf[o.code]=r;OFF=!!o.off;ws.getRow(r).height=18;
+    put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{font:FN(11,1),al:"center"});put(ws,"C"+r,o.address,{font:FN(12,1),al:"left"});
+    put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address,font:FN(11),al:"left"});put(ws,"E"+r,o.teller,{font:FN(14)});
     put(ws,"F"+r,0,{fx:`IFERROR(VLOOKUP($B${r},${rng(3)}),0)`,res:o.bets,font:FN(11,1),fmt:"#,##0.00"});
     put(ws,"G"+r,0,{fx:`IFERROR(VLOOKUP($B${r},${rng(6)}),0)`,res:o.pay,font:FN(14),fmt:PESO});
     put(ws,"H"+r,0,{fx:`F${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});put(ws,"I"+r,0,{fx:`F${r}-G${r}-H${r}`,res:o.pal,font:FN(14),fmt:PESO});
-    put(ws,"J"+r,0,{fx:`IF(F${r}<100,0,IF(F${r}>=61000,0,LOOKUP(F${r},$H$${t1}:$H$${t2},$J$${t1}:$J$${t2})))`,res:o.sal,font:FN(14),fmt:PESO})});
+    put(ws,"J"+r,0,{fx:`IF(F${r}<100,0,IF(F${r}>=61000,0,LOOKUP(F${r},$H$${t1}:$H$${t2},$J$${t1}:$J$${t2})))`,res:o.sal,font:FN(14),fmt:PESO})});OFF=false;
   A.collectors.forEach((c,i)=>{const r=cf+i;put(ws,"D"+r,"COLLECTOR",{font:FN(14),al:"left"});put(ws,"E"+r,c,{font:FN(14)});put(ws,"J"+r,500,{font:FN(14),fmt:PESO})});
   const T=A.totals,sumc=(c,e,res)=>put(ws,c+tot,0,{fx:`SUM(${c}${first}:${c}${e})`,res,font:FN(14,1),fmt:PESO});
   put(ws,"C"+tot,"TOTAL",{font:FN(14,1),al:"left"});put(ws,"D"+tot,"TOTAL",{font:FN(14,1),al:"left"});
   sumc("F",last,T.bets);sumc("G",last,T.pay);sumc("H",last,T.comm);sumc("I",last,T.pal);sumc("J",cl,T.sal);
   put(ws,"H"+cm,"COMMISSION",{font:FN(14,1)});put(ws,"I"+cm,0,{fx:`H${tot}`,res:T.comm,font:FN(14,1),fmt:PESO});
   put(ws,"H"+gr,"TOTAL GROSS",{font:FN(14,1)});put(ws,"I"+gr,0,{fx:`SUM(I${tot},I${cm})`,res:T.gross,font:FN(14,1),fmt:PESO});
-  const pb=tot+4;put(ws,"C"+pb,"PREPARED BY: ",{font:FN(14,1),nb:1});SV[area].forEach((s,i)=>{if(i)put(ws,String.fromCharCode(67+i)+pb,"PREPARED BY: ",{font:FN(14,1),nb:1});put(ws,String.fromCharCode(67+i)+(pb+1),"SV: "+s,{font:FN(14,1),nb:1})});
+  const pb=tot+4;const CM={name:"Cutive Mono",size:11,color:{argb:"FF02A5E3"}};put(ws,"C"+pb,"PREPARED BY: ",{font:CM,al:"left",nb:1});put(ws,"C"+(pb+1),"SV: "+SV[area][0],{font:{...CM,size:18,bold:true,italic:true},al:"center",nb:1});
   put(ws,"H"+(t1-1),"SALARY TABLE",{font:FN(12,1)});put(ws,"I"+(t1-1),"(daily gross sales)",{font:FN(10)});put(ws,"J"+(t1-1),"SALARY",{font:FN(12,1)});
   for(let i=0;i<=56;i++){const r=t1+i,lo=i==0?100:5000+(i-1)*1000;put(ws,"H"+r,lo,{font:FN(11),fmt:"#,##0"});put(ws,"I"+r,i==0?4999:lo+999,{font:FN(11),fmt:"#,##0"});
     put(ws,"J"+r,i<2?(i?300:250):0,i<2?{font:FN(11),fmt:'"₱"#,##0'}:{fx:`J${r-1}+10`,res:300+10*(i-1),font:FN(11),fmt:'"₱"#,##0'})}
   widths(ws,{A:5.1,B:19.3,C:68.4,D:63.2,E:48.6,F:27,G:22.7,H:27,I:25.7,J:22.3});
   return{ws,rowOf,tot,cm,gr}}
 
-function areaSheetNarrow(wb,snap,area,col,S1){
-  const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" NEW AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31));
-  put(ws,"A1","DATE",{font:FN(18,1),fill:"FFCC99FF",al:"center"});put(ws,"B1",0,{fx:"Sheet1!E1",res:ser(snap.date),fmt:"d-mmm-yy",font:FN(18,1),al:"center"});
-  ws.mergeCells("C1:G1");put(ws,"C1",col,{font:FN(18,1),fill:"FF3399FF",al:"center"});
+function areaSheetNarrow(wb,snap,area,col,S1,idx){
+  const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" NEW AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31),{properties:{tabColor:{argb:ccol(col,idx)[1]}}});
+  put(ws,"A1","DATE",{font:FN(18,1),fill:"FFCC99FF",al:"center"});put(ws,"B1",0,{fx:"Sheet1!E1",res:ser(snap.date),fmt:"d-mmm-yy",font:FN(18,1),fill:"FF99CCFF",al:"center"});
+  ws.mergeCells("C1:G1");put(ws,"C1",col,{font:FN(18,1,"FF36363D"),fill:ccol(col,idx)[0],al:"center"});
   ["OUTLETS","TELLER","TOTAL BETS","PAYOUTS","COMMISSION","PALAWAN","SALARY"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"2",h,{font:FN(12,1),al:"center"}));
-  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];
+  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;
     put(ws,"A"+r,0,{fx:`Sheet1!D${s}`,res:o.code+" "+o.address,font:FN(11)});put(ws,"B"+r,0,{fx:`Sheet1!E${s}`,res:o.teller,font:FN(11)});
     put(ws,"C"+r,0,{fx:`Sheet1!F${s}`,res:o.bets,font:FN(14),fmt:PESO,al:"center"});put(ws,"D"+r,0,{fx:`Sheet1!G${s}`,res:o.pay,font:FN(14),fmt:PESO});
-    put(ws,"E"+r,0,{fx:`C${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});put(ws,"F"+r,0,{fx:`C${r}-D${r}-E${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"G"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});
+    put(ws,"E"+r,0,{fx:`C${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});put(ws,"F"+r,0,{fx:`C${r}-D${r}-E${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"G"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});OFF=false;
   const e=2+os.length,c=e+1,t=e+2,sum=(o,f)=>os.reduce((s,x)=>s+x[f],0),bets=sum(0,"bets"),pay=sum(0,"pay"),comm=bets*0.125;
   put(ws,"A"+c,"COLLECTOR",{font:FN(11,1)});put(ws,"B"+c,col,{font:FN(11,1)});put(ws,"G"+c,500,{font:FN(14),fmt:PESO});
   put(ws,"A"+t,"TOTAL",{font:FN(11,1)});
@@ -99,14 +101,14 @@ function areaSheetNarrow(wb,snap,area,col,S1){
   put(ws,"E"+(t+2),"TOTAL GROSS",{font:FN(11,1)});put(ws,"F"+(t+2),0,{fx:`SUM(F${t},F${t+1})`,res:bets-pay,font:FN(14,1),fmt:PESO});
   widths(ws,{A:65.1,B:30.2,C:22,D:19.7,E:20.9,F:22.3,G:20.9})}
 
-function areaSheetWide(wb,snap,area,col,S1){
-  const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31));
-  put(ws,"C1","DATE",{font:FN(14,1),al:"center"});put(ws,"D1","DATE",{font:FN(14,1),al:"center"});put(ws,"E1",0,{fx:"Sheet1!E1",res:ser(snap.date),font:FN(24,1),fmt:"d-mmm-yy",fill:"FFA5C9EC",al:"center"});
+function areaSheetWide(wb,snap,area,col,S1,idx){
+  const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31),{properties:{tabColor:{argb:ccol(col,idx)[1]}}});
+  put(ws,"C1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});put(ws,"D1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});ws.getRow(1).height=30;put(ws,"E1",0,{fx:"Sheet1!E1",res:ser(snap.date),font:FN(24,1),fmt:"d-mmm-yy",fill:"FFA5C9EC",al:"center"});
   ws.mergeCells("F1:J1");put(ws,"F1",col,{font:FN(22,1),fill:"FFFFFF00",al:"center"});
   ["NO.","BOOTH CODE","ADDRESS","OUTLETS","TELLER","TOTAL BETS","PAY OUT","COMMISSION","PALAWAN","SALARY"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"2",h,{font:FN(14,1),al:"center"}));
-  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{});put(ws,"C"+r,o.address,{});put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address});put(ws,"E"+r,o.teller,{});
+  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{});put(ws,"C"+r,o.address,{});put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address});put(ws,"E"+r,o.teller,{});
     put(ws,"F"+r,0,{fx:`Sheet1!F${s}`,res:o.bets,fmt:"#,##0.00",font:FN(11,1)});put(ws,"G"+r,0,{fx:`Sheet1!G${s}`,res:o.pay,font:FN(14),fmt:PESO});put(ws,"H"+r,0,{fx:`F${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});
-    put(ws,"I"+r,0,{fx:`F${r}-G${r}-H${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"J"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});
+    put(ws,"I"+r,0,{fx:`F${r}-G${r}-H${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"J"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});OFF=false;
   const e=2+os.length,c=e+1,t=e+2,sum=f=>os.reduce((s,x)=>s+x[f],0),bets=sum("bets"),pay=sum("pay"),comm=bets*0.125;
   put(ws,"D"+c,"COLLECTOR",{font:FN(14)});put(ws,"E"+c,col,{font:FN(14)});put(ws,"J"+c,500,{font:FN(14),fmt:PESO});put(ws,"C"+t,"TOTAL",{font:FN(14,1)});put(ws,"D"+t,"TOTAL",{font:FN(14,1)});
   [["F",bets],["G",pay],["H",comm],["I",bets-pay-comm]].forEach(([k,v])=>put(ws,k+t,0,{fx:`SUM(${k}3:${k}${e})`,res:v,font:FN(14,1),fmt:PESO}));put(ws,"J"+t,0,{fx:`SUM(J3:J${c})`,res:sum("sal")+500,font:FN(14,1),fmt:PESO});
@@ -129,23 +131,30 @@ function eodSheet(wb,snap,area,S1,eod){
   else{["D","E","F","G","H"].forEach((c,i)=>{const s=snap.rows.reduce((a,r)=>a+[r.gross,r.net,r.lessComm,r.lessPay,r.coll][i],0);put(ws,c+(L+7),0,{fx:`SUM(${c}2:${c}${L+6})`,res:s,font:cal,nb:1})});block(L+24,mine)}
   widths(ws,{A:13.1,B:14.2,C:11.1,D:14,E:11.7,F:18.4,G:16.4,H:12.2})}
 
-function lowSheet(wb,snap,eod,threshold){
-  const ws=wb.addWorksheet("Low Sales"),low=snap.rows.filter(r=>r.gross<threshold),tw=ws.getColumn("A");
-  ws.mergeCells("A1:B1");put(ws,"A1","LOW SALES REPORT — EOD",{font:FN(14,1)});put(ws,"C1",0,{fx:"Sheet1!E1",res:ser(snap.date),fmt:"d-mmm-yy",font:FN(12,1)});
-  put(ws,"A2","Low Sales Threshold (₱):",{font:FN(11,1)});put(ws,"B2",threshold,{font:{name:"Arial",size:11,color:{argb:"FF0000FF"}}});put(ws,"C2","← Threshold used when this file was generated",{font:FN(10)});
-  ws.mergeCells("A3:C3");put(ws,"A3","Outlets in the accounting file with gross below the threshold.",{font:FN(10)});
-  ["Outlet Name","Gross","Status"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"4",h,{font:FN(11,1),al:"center"}));
-  low.forEach((r,i)=>{const n=5+i;put(ws,"A"+n,r.code,{});put(ws,"B"+n,r.gross,{fmt:"#,##0"});put(ws,"C"+n,0,{fx:`IF(B${n}<1000,"🔴 Critical",IF(B${n}<2000,"🟠 Very Low","🟡 Low"))`,res:r.gross<1000?"🔴 Critical":r.gross<2000?"🟠 Very Low":"🟡 Low"})});
-  const e=5+low.length,rg=`'${eod}'!$D$2:$D$1500`;
-  put(ws,"A"+e,"Total Low Sales Outlets:",{font:FN(11,1)});put(ws,"B"+e,0,{fx:`COUNTIF(${rg},"<"&$B$2)`,res:low.length,font:FN(11,1)});
-  put(ws,"A"+(e+1),"Total Gross (Low Sales):",{font:FN(11,1)});put(ws,"B"+(e+1),0,{fx:`SUMIF(${rg},"<"&$B$2,${rg})`,res:low.reduce((s,r)=>s+r.gross,0),font:FN(11,1),fmt:"#,##0"});
-  widths(ws,{A:30,B:16,C:30})}
+function lowSheet(wb,snap,eod,threshold,L){
+  const ws=wb.addWorksheet("Low Sales"),low=snap.rows.filter(r=>r.gross<threshold),areaOfCode={};
+  for(const k of ["DDN","SAMAL"])snap.areas[k].outlets.forEach(o=>areaOfCode[o.code]=k);
+  const W=c=>({font:{name:"Arial",size:10,bold:true,color:{argb:"FFFFFFFF"}}});
+  ws.mergeCells("A1:B1");ws.getRow(1).height=27.75;ws.getRow(3).height=18;ws.getRow(4).height=18;
+  put(ws,"A1","LOW SALES REPORT — EOD",{font:FN(13,1,"FFFFFFFF"),fill:"FFC00000",al:"center"});put(ws,"B1","",{fill:"FFC00000"});
+  put(ws,"C1",0,{fx:"Sheet1!E1",res:ser(snap.date),fmt:"mmmm dd, yyyy",font:FN(16,1,"FFFFFFFF"),fill:"FFC00000",al:"center"});put(ws,"D1","",{fill:"FFC00000"});
+  put(ws,"A2","Low Sales Threshold (₱):",{font:FN(10,1,"FFFFFFFF"),fill:"FFFF6600",al:"center"});put(ws,"B2",threshold,{font:FN(11,1,"FF8B0000"),fill:"FFFFF2CC",fmt:"#,##0",al:"center"});
+  put(ws,"C2","Threshold used when this file was created",{font:{name:"Arial",size:9,italic:true,color:{argb:"FF666666"}},al:"left",nb:1});
+  ws.mergeCells("A3:D3");put(ws,"A3","Outlets in the accounting file with gross sales below the threshold (DDN and Samal).",{font:{name:"Arial",size:9,italic:true,color:{argb:"FFFFFFFF"}},fill:"FFAA0000",al:"center"});
+  ["Outlet Name","Gross","Status","Area"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"4",h,{...W(),fill:"FF8B0000",al:"center"}));
+  const base={font:FN(10),al:"center"};
+  low.forEach((r,i)=>{const n=5+i,f=i%2?"FFFFFFFF":"FFFFE0E0",st=r.gross<1000?"🔴 Critical":r.gross<2000?"🟠 Very Low":"🟡 Low";
+    put(ws,"A"+n,r.code,{...base,fill:f});put(ws,"B"+n,r.gross,{...base,fill:f,fmt:"#,##0"});put(ws,"C"+n,0,{...base,fill:f,fx:`IF(B${n}="","",IF(B${n}<1000,"🔴 Critical",IF(B${n}<2000,"🟠 Very Low","🟡 Low")))`,res:st});put(ws,"D"+n,areaOfCode[r.code]||"—",{...base,fill:f})});
+  const e=5+low.length,rg=`'${eod}'!$D$2:$D$${L}`,tb={font:FN(10,1),al:"center",fill:"FFFFC000"};
+  put(ws,"A"+e,"Total Low Sales Outlets:",tb);put(ws,"B"+e,0,{...tb,fx:`COUNTIF(${rg},"<"&$B$2)`,res:low.length});put(ws,"C"+e,"",tb);put(ws,"D"+e,"",tb);
+  put(ws,"A"+(e+1),"Total Gross (Low Sales):",tb);put(ws,"B"+(e+1),0,{...tb,fx:`SUMIF(${rg},"<"&$B$2,${rg})`,res:low.reduce((s,r)=>s+r.gross,0),fmt:"#,##0"});put(ws,"C"+(e+1),"",tb);put(ws,"D"+(e+1),"",tb);
+  widths(ws,{A:23.9,B:21.1,C:35.7,D:14})}
 
 function buildXlsx(EJ,snap,area,threshold=3000){
   const wb=new EJ.Workbook(),eod=("EOD - "+longD(snap.date)).slice(0,31),L=snap.rows.length+1;
   wb.creator="North005 Davao ERP";const S1=sheet1(wb,snap,area,eod,L);
-  snap.areas[area].collectors.forEach(c=>area=="DDN"?areaSheetNarrow(wb,snap,area,c,S1):areaSheetWide(wb,snap,area,c,S1));
-  eodSheet(wb,snap,area,S1,eod);if(area=="SAMAL")lowSheet(wb,snap,eod,threshold);
+  snap.areas[area].collectors.forEach((c,i)=>area=="DDN"?areaSheetNarrow(wb,snap,area,c,S1,i):areaSheetWide(wb,snap,area,c,S1,i));
+  eodSheet(wb,snap,area,S1,eod);lowSheet(wb,snap,eod,threshold,L);
   wb.calcProperties={fullCalcOnLoad:true};return wb}
 
 // ---------------- UI ----------------
