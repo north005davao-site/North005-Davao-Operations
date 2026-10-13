@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script><script src="modules.js"></script><script src="sales.js"></script><script src="ca.js"></script><script src="rent.js"></script><script src="dash.js"></script><script src="attendance.js"></script><script src="docs.js"></script><script src="orgchart.js"></script><script src="thermal.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><title>North005 Davao ERP</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<html lang="en"><head><meta charset="utf-8"><title>North005 Davao ERP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#0a1a3f">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png"><link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png"><link rel="shortcut icon" href="favicon.ico"><link rel="apple-touch-icon" href="assets/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://aplntnljisjpjvfblvlu.supabase.co" crossorigin><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin><link rel="preload" as="image" href="assets/logo.webp">
 <style>
 :root{--bg:#0a1a3f;--panel:#10265a;--line:#24407f;--tx:#eef2ff;--mu:#9fb0d8;--gold:#e0b13a;--red:#d1203a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -86,16 +88,16 @@ dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var
 .nt{display:flex;flex-direction:column;min-width:0;flex:1}.nt small,.lf small{color:var(--mu);font-size:12px}
 .cnt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:1px 9px;color:var(--mu);white-space:nowrap}
 .lf{display:flex;align-items:center;gap:10px;padding:5px 4px;font-size:13.5px;flex-wrap:wrap}.dot{width:9px;height:9px;border-radius:50%;flex:none}
-#boot{min-height:100%;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#12306f,#050d24)}#boot .bl{text-align:center}#boot img{width:110px;display:block;margin:0 auto 18px;animation:flt 2.2s ease-in-out infinite;filter:drop-shadow(0 0 18px rgba(224,177,58,.6))}
+
 .spin{width:34px;height:34px;margin:0 auto;border-radius:50%;border:3px solid rgba(224,177,58,.25);border-top-color:#e0b13a;animation:spn 1s linear infinite}@keyframes spn{to{transform:rotate(360deg)}}
-.bgimg{position:absolute;inset:-6%;background:linear-gradient(rgba(6,14,38,.5),rgba(6,14,38,.78)),url(assets/bg.jpg) center/cover;animation:kb 30s ease-in-out infinite alternate;will-change:transform}
+.bgimg{position:absolute;inset:-6%;background:linear-gradient(rgba(6,14,38,.5),rgba(6,14,38,.78)),url(assets/bg.webp) center/cover;animation:kb 30s ease-in-out infinite alternate;will-change:transform}
 @keyframes kb{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.14) translate(-2.5%,-1.5%)}}
 .parts{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden}.parts i{position:absolute;bottom:-20px;border-radius:50%;background:radial-gradient(circle,#ffe9a8,rgba(224,177,58,0));opacity:0;animation:rise linear infinite}
 @keyframes rise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-110vh) translateX(var(--dx,0)) scale(1.1);opacity:0}}
 .card{position:relative;z-index:2;animation:cardUp .9s cubic-bezier(.2,.9,.3,1) both,glowb 4s ease-in-out 1s infinite alternate}
 @keyframes cardUp{from{opacity:0;transform:translateY(34px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes glowb{from{box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 rgba(224,177,58,0)}to{box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 38px rgba(224,177,58,.35),0 0 70px rgba(209,32,58,.18)}}
-.card>*{animation:fadeUp .6s both;animation-delay:calc(var(--n,0)*70ms + .35s)}@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card>*:not(#frm):not(#dn),#frm>*{animation:fadeUp .6s both;animation-delay:calc(var(--n,0)*70ms + .35s)}@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .card img{animation:flt 5s ease-in-out infinite,fadeUp .6s both;filter:drop-shadow(0 0 14px rgba(224,177,58,.55))}@keyframes flt{50%{transform:translateY(-6px)}}
 #auth .btn{position:relative;overflow:hidden}#auth .btn::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);animation:shine 3.5s ease-in-out infinite}@keyframes shine{60%,100%{left:140%}}
 #auth input:focus{outline:none;border-color:#e0b13a;box-shadow:0 0 0 3px rgba(224,177,58,.25)}
@@ -124,154 +126,63 @@ dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var
 .omsg{position:relative;margin-top:24px;max-width:460px;text-align:center;color:#c9d6f5;font-size:14px}.opg{position:relative;margin-top:22px;width:100%;max-width:760px}.opg .pg{color:#fff}
 @media(max-width:560px){.pc{width:136px}.pc.big{width:186px}.pc.sm{width:116px}.stage .deco{display:none}}
 @media (prefers-reduced-motion:reduce){.stage,.pc,.olg{animation:none!important}}
-</style></head><body>
 
-<section id="boot"><div class="bl"><img src="assets/logo.png" alt=""><div class="spin"></div></div></section>
+
+#boot .ring{position:absolute;inset:0;border-radius:50%;border:3px solid rgba(224,177,58,.16);border-top-color:#e0b13a;border-right-color:#d1203a;animation:spn 1.1s linear infinite}
+.pop{animation:fieldIn .35s ease both!important;animation-delay:0s!important}@keyframes fieldIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+.hint{font-size:12px;color:#9fb0d8;margin:7px 2px 0}
+#auth .btn.busy::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(26,19,0,.3);border-top-color:#1a1300;border-radius:50%;animation:spn .8s linear infinite}#auth .btn:disabled{opacity:.9;cursor:wait}
+.done{text-align:center;padding:4px 0}.done h2{margin:8px 0 6px;color:#fff;font-size:21px}.done p{color:#b9c6e8;font-size:14px;margin:0 0 4px;line-height:1.5}
+.chk{width:88px;height:88px;display:block;margin:4px auto}.chk .c{fill:rgba(34,197,94,.12);stroke:#22c55e;stroke-width:2.5;stroke-dasharray:151;stroke-dashoffset:151;animation:draw .7s ease forwards}.chk .t{fill:none;stroke:#22c55e;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:draw .5s .55s ease forwards}@keyframes draw{to{stroke-dashoffset:0}}
+
+
+#boot .ring{position:absolute;inset:0;border-radius:50%;border:3px solid rgba(224,177,58,.16);border-top-color:#e0b13a;border-right-color:#d1203a;animation:spn 1.1s linear infinite}
+.pop{animation:fieldIn .35s ease both!important;animation-delay:0s!important}@keyframes fieldIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+.hint{font-size:12px;color:#9fb0d8;margin:7px 2px 0}
+#auth .btn.busy::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(26,19,0,.3);border-top-color:#1a1300;border-radius:50%;animation:spn .8s linear infinite}#auth .btn:disabled{opacity:.9;cursor:wait}
+.done{text-align:center;padding:4px 0}.done h2{margin:8px 0 6px;color:#fff;font-size:21px}.done p{color:#b9c6e8;font-size:14px;margin:0 0 4px;line-height:1.5}
+.chk{width:88px;height:88px;display:block;margin:4px auto}.chk .c{fill:rgba(34,197,94,.12);stroke:#22c55e;stroke-width:2.5;stroke-dasharray:151;stroke-dashoffset:151;animation:draw .7s ease forwards}.chk .t{fill:none;stroke:#22c55e;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:draw .5s .55s ease forwards}@keyframes draw{to{stroke-dashoffset:0}}
+
+#boot{min-height:100%;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#12306f,#050d24)}
+#boot .bl{position:relative;width:150px;height:150px;display:grid;place-items:center}
+#boot img{width:104px;height:104px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(224,177,58,.55))}
+#boot .ring{position:absolute;inset:0;border-radius:50%;border:3px solid rgba(224,177,58,.16);border-top-color:#e0b13a;border-right-color:#d1203a;animation:spn 1.1s linear infinite}
+.pop{animation:fieldIn .35s ease both!important;animation-delay:0s!important}@keyframes fieldIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+.hint{font-size:12px;color:#9fb0d8;margin:7px 2px 0}
+#auth .btn.busy::before{content:"";display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(26,19,0,.3);border-top-color:#1a1300;border-radius:50%;animation:spn .8s linear infinite}#auth .btn:disabled{opacity:.9;cursor:wait}
+.done{text-align:center;padding:4px 0}.done h2{margin:8px 0 6px;color:#fff;font-size:21px}.done p{color:#b9c6e8;font-size:14px;margin:0 0 4px;line-height:1.5}
+.chk{width:88px;height:88px;display:block;margin:4px auto}.chk .c{fill:rgba(34,197,94,.12);stroke:#22c55e;stroke-width:2.5;stroke-dasharray:151;stroke-dashoffset:151;animation:draw .7s ease forwards}.chk .t{fill:none;stroke:#22c55e;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:draw .5s .55s ease forwards}@keyframes draw{to{stroke-dashoffset:0}}
+</style>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script defer src="modules.js?v=1791929687"></script>
+<script defer src="sales.js?v=1791929687"></script>
+<script defer src="ca.js?v=1791929687"></script>
+<script defer src="rentals.js?v=1791929687"></script>
+<script defer src="dash.js?v=1791929687"></script>
+<script defer src="attendance.js?v=1791929687"></script>
+<script defer src="docs.js?v=1791929687"></script>
+<script defer src="orgchart.js?v=1791929687"></script>
+<script defer src="thermal.js?v=1791929687"></script>
+<script defer src="app.js?v=1791929687"></script>
+</head><body><section id="boot"><div class="bl"><div class="ring"></div><img src="assets/logo.webp" alt=""></div></section>
 <section id="auth" class="hide"><div class="bgimg"></div><div class="parts" id="parts"></div><div class="card">
-<img src="assets/logo.png" alt="North-005"><h1>North005 Davao ERP</h1><p class="s">Kugihan · Masaligan · Maalagaron</p>
+<img src="assets/logo.webp" alt="North-005"><h1>North005 Davao ERP</h1><p class="s">Kugihan · Masaligan · Maalagaron</p>
+<div id="frm">
 <div class="sub2" id="sub">Sign in to your account</div>
 <div id="fN" class="hide"><label>Full name</label><input id="name" autocomplete="name"></div>
 <div id="fU"><label>Username</label><input id="user" autocomplete="username" autocapitalize="off"></div>
 <div id="fP"><label id="pwl">Password</label><div class="pwf"><input id="pw" type="password" autocomplete="current-password"><button type="button" class="eye" aria-label="Show password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M3 3l18 18"/></svg></button></div></div>
 <div id="fC" class="hide"><label>Confirm password</label><div class="pwf"><input id="pw2" type="password" autocomplete="new-password"><button type="button" class="eye" aria-label="Show password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M3 3l18 18"/></svg></button></div></div>
+<div class="hint hide" id="ph">Use at least 8 characters. A longer passphrase is stronger.</div>
 <button class="btn" id="go">Login</button><div class="msg" id="msg"></div>
-<a class="lk " id="sw" href="#" onclick="return false">No account yet? Sign up</a><a class="lk" id="fg" href="#" onclick="return false">Forgot password?</a><a class="lk hide" id="bk" href="#" onclick="return false">← Back to login</a>
+<a class="lk" id="sw" href="#" onclick="return false">No account yet? Sign up</a><a class="lk" id="fg" href="#" onclick="return false">Forgot password?</a><a class="lk hide" id="bk" href="#" onclick="return false">← Back to login</a>
+</div>
+<div id="dn" class="hide done"><svg class="chk" viewBox="0 0 52 52"><circle class="c" cx="26" cy="26" r="24"/><path class="t" d="M14 27l8 8 16-17"/></svg><h2>Account created!</h2><p>Your account is waiting for the Administrator's approval. You can log in as soon as it is approved.</p><button class="btn" id="dnb" type="button">Back to login</button></div>
 </div></section>
-
-<section id="intro" class="hide"><div><div class="lg"><img src="assets/logo.png" alt=""></div><h2 id="wl">Welcome</h2><div class="bar"><i></i></div></div></section>
+<section id="intro" class="hide"><div><div class="lg"><img src="assets/logo.webp" alt=""></div><h2 id="wl">Welcome</h2><div class="bar"><i></i></div></div></section>
 
 <div id="app" class="hide">
-<aside id="side"><div class="brand"><img src="assets/logo.png" alt=""><div><b>North005</b><span>Davao ERP</span></div></div><div id="navs"></div></aside>
+<aside id="side"><div class="brand"><img src="assets/logo.webp" alt=""><div><b>North005</b><span>Davao ERP</span></div></div><div id="navs"></div></aside>
 <main><header><button class="ghost" id="menu">☰</button><h3 id="ttl"></h3><span class="chip" id="who"></span><button class="ghost" id="out">Logout</button></header><div id="view"></div></main></div>
 
-<script>
-const SB_URL="https://aplntnljisjpjvfblvlu.supabase.co",SB_KEY="sb_publishable_CnYeee1LF3BwV55pjUUsOw_6PT8-u9_";
-const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}),$=s=>document.querySelector(s);
-const G=[["CORE OPERATIONS",["DASHBOARD","MASTER REGISTRY","SALES & COLLECTION","ETS LIVE TRACKING"]],
-["FINANCE & PROPERTY",["CASH ADVANCE (C.A) & PAYMENTS","OUTLET RENTALS & LOAD ALLOWANCE"]],
-["WORKFORCE & TOOLS",["USER & ACCESS MANAGEMENT","ATTENDANCE / WORKFORCE MONITORING","ORGANIZATIONAL CHART","EMPLOYEE DOCUMENTS","THERMAL PAPER DAILY SUMMARY"]],
-["SYSTEM ADMINISTRATION",["BACK UP & RESTORE"]],["PROFILE",["MY ACCOUNT"]]];
-const ROLES={admin:"Operations Administrator",supervisor:"Field Sales Supervisor",collector:"Field Sales Collector",rep:"Sales Representative",reliever:"Reliever"};
-const CORE=G[0][1],FIN=G[1][1],CA="CASH ADVANCE (C.A) & PAYMENTS",ATT="ATTENDANCE / WORKFORCE MONITORING",ACC="MY ACCOUNT";
-const ALLOW={admin:null,supervisor:[...CORE,...FIN,ACC],collector:[CA,ACC],rep:[ATT,ACC],reliever:[ATT,ACC]};
-let me=null,cur=null,mode="L",ch=null;
-const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const show=id=>["boot","auth","intro","app"].forEach(x=>$("#"+x).classList.toggle("hide",x!=id));
-const setMsg=(t,ok)=>{const m=$("#msg");m.textContent=t;m.style.color=ok?"#8fe3a8":"#ff8b9b"};
-const allowed=()=>{const a=ALLOW[me.role];return a?G.flatMap(g=>g[1]).filter(n=>a.includes(n)):G.flatMap(g=>g[1])};
-const uid=s=>s.trim().toLowerCase();
-const em=u=>u+"@north005.app";
-
-function tab(m){mode=m;
-  $("#fN").classList.toggle("hide",m!="S");$("#fU").classList.toggle("hide",m=="C");$("#fP").classList.toggle("hide",m=="F");
-  $("#fC").classList.toggle("hide",m!="S"&&m!="C");$("#fg").classList.toggle("hide",m!="L");$("#bk").classList.toggle("hide",m!="F"&&m!="C");
-  $("#sw").classList.toggle("hide",m=="F"||m=="C");$("#sw").textContent=m=="S"?"Already have an account? Login":"No account yet? Sign up";
-  $("#go").textContent={L:"Login",S:"Create Account",F:"Send Request to Administrator",C:"Set New Password"}[m];
-  $("#sub").textContent={L:"Sign in to your account",S:"Create your account",F:"Request a password reset",C:"Choose a new password"}[m];
-  $("#pwl").textContent=m=="C"?"New password":"Password";setMsg("")}
-$("#sw").onclick=()=>tab(mode=="S"?"L":"S");$("#fg").onclick=()=>tab("F");$("#bk").onclick=async()=>{if(mode=="C"){await sb.auth.signOut()}tab("L")};
-
-async function loadMe(){const{data:{user}}=await sb.auth.getUser();if(!user)return null;
-  const{data}=await sb.from("profiles").select("*").eq("id",user.id).single();me=data;return data}
-
-$("#go").onclick=async()=>{
-  const u=uid($("#user").value),pw=$("#pw").value,b=$("#go");b.disabled=true;setMsg("");
-  try{
-    if(mode=="F"){if(!u)throw"Enter your username.";await sb.rpc("request_password_reset",{uname:u});
-      setMsg("Request sent. The Administrator will give you a temporary password.",1);b.disabled=false;return}
-    if(mode=="C"){if(pw.length<6)throw"Password must be at least 6 characters.";if(pw!==$("#pw2").value)throw"Passwords do not match.";
-      const r=await sb.auth.updateUser({password:pw});if(r.error)throw r.error.message;
-      await sb.from("profiles").update({must_change:false}).eq("id",me.id);me.must_change=false;clear();return intro()}
-    if(!/^[a-z0-9_.-]{3,30}$/.test(u))throw"Username: 3-30 letters, numbers, . _ -";if(!pw)throw"Enter your password.";
-    if(mode=="S"){const name=$("#name").value.trim();if(!name)throw"Enter your full name.";if(pw.length<6)throw"Password must be at least 6 characters.";
-      if(pw!==$("#pw2").value)throw"Passwords do not match.";
-      const{error}=await sb.auth.signUp({email:em(u),password:pw,options:{data:{full_name:name}}});
-      if(error)throw/registered/i.test(error.message)?"That username is already taken.":error.message}
-    else{const{error}=await sb.auth.signInWithPassword({email:em(u),password:pw});if(error)throw"Incorrect username or password."}
-    const p=await loadMe();
-    if(!p)throw"Could not load your account. Try again.";
-    if(p.status=="pending"){await sb.auth.signOut();clear();tab("L");setMsg("Account created. Please wait for the Administrator to approve it.",1);b.disabled=false;return}
-    if(p.status=="disabled"){await sb.auth.signOut();throw"This account is disabled. Contact the Administrator."}
-    if(p.must_change){tab("C");setMsg("Set a new password to continue.",1);b.disabled=false;return}
-    clear();intro();
-  }catch(e){setMsg(typeof e=="string"?e:"Something went wrong. Please try again.")}
-  b.disabled=false};
-const clear=()=>{$("#name").value=$("#user").value=$("#pw").value=$("#pw2").value="";document.querySelectorAll(".eye.on").forEach(b=>b.click())};
-addEventListener("keydown",e=>{if(e.key=="Enter"&&!$("#auth").classList.contains("hide"))$("#go").click()});
-
-function intro(){show("intro");$("#wl").textContent="Welcome, "+me.full_name.split(" ")[0];
-  setTimeout(()=>$("#intro").classList.add("out"),3900);setTimeout(()=>{$("#intro").classList.remove("out");enter()},4700)}
-function enter(){show("app");$("#who").textContent=me.full_name+" · "+ROLES[me.role];
-  const a=allowed();$("#navs").innerHTML=G.map(([g,it])=>{const f=it.filter(n=>a.includes(n));return f.length?`<div class="grp">${g}</div>`+f.map(n=>`<button class="nav" data-n="${esc(n)}">${esc(n)}</button>`).join(""):""}).join("");
-  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";if(window.DOCS)DOCS.id=null;if(window.THERMAL)THERMAL.ed=null;if(window.ORG)ORG.path=[];go(b.dataset.n);$("#side").classList.remove("open")});
-  go(a.includes(cur)?cur:a[0]);live()}
-function live(){if(ch)sb.removeChannel(ch);
-  ch=sb.channel("n005").on("postgres_changes",{event:"*",schema:"public",table:"profiles"},async()=>{
-    const old=me;const p=await loadMe();if(!p||p.status!="active"){await out();return}
-    if(p.role!=old.role){enter();return}if(cur=="USER & ACCESS MANAGEMENT")go(cur)})
-  .on("postgres_changes",{event:"*",schema:"public",table:"password_requests"},()=>{if(cur=="USER & ACCESS MANAGEMENT")go(cur)}).subscribe()}
-async function go(n){cur=n;$("#ttl").textContent=n;document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("on",b.dataset.n==n));
-  const v=$("#view");
-  if(window.MODS&&MODS[n])return MODS[n](v);
-  if(n==ACC)return acct(v);if(n=="USER & ACCESS MANAGEMENT")return users(v);if(n=="BACK UP & RESTORE")return backup(v);
-  v.innerHTML=`<div class="empty"><b>${esc(n)}</b><br>No records yet. This module is empty and ready to be configured.</div>`}
-
-function acct(v){v.innerHTML=`<div class="box"><label>Full name</label><input id="an" value="${esc(me.full_name)}"><label>Username</label><input value="${esc(me.username)}" disabled><label>Role</label><input value="${esc(ROLES[me.role])}" disabled>
-<label>New password (leave blank to keep)</label><input id="ap" type="password" autocomplete="new-password"><button class="btn" id="as">Save changes</button><div class="msg" id="am" style="color:var(--gold)"></div></div>`;
-  $("#as").onclick=async()=>{const m=$("#am"),p=$("#ap").value,n=$("#an").value.trim()||me.full_name;
-    if(p&&p.length<6)return m.textContent="Password must be at least 6 characters.";
-    let r=await sb.from("profiles").update({full_name:n}).eq("id",me.id);if(r.error)return m.textContent="Could not save.";
-    if(p){r=await sb.auth.updateUser({password:p});if(r.error)return m.textContent=r.error.message}
-    me.full_name=n;$("#who").textContent=n+" · "+ROLES[me.role];$("#ap").value="";m.textContent="Saved."}}
-
-let UQ="";
-async function users(v){
-  const[P,R]=await Promise.all([sb.from("profiles").select("*").order("created_at"),sb.from("password_requests").select("*").eq("status","open").order("created_at")]);
-  const ps=P.data||[],rq=R.data||[],find=id=>ps.find(x=>x.id==id);
-  const opt=(o,s,blank)=>(blank?`<option value="">— assign —</option>`:"")+Object.entries(o).map(([k,l])=>`<option value="${k}"${k==s?" selected":""}>${l}</option>`).join("");
-  const draw=()=>{
-    const q=UQ.toLowerCase(),list=ps.filter(x=>!q||[x.full_name,x.username,ROLES[x.role]||"",x.status].join(" ").toLowerCase().includes(q)),pend=ps.filter(x=>x.status=="pending").length,pg=PAGER.paginate("users",list);
-    v.innerHTML=(rq.length?`<h4 class="h">Password requests (${rq.length})</h4><div class="tw"><table><tbody>${rq.map(r=>`<tr><td>${esc(r.username)}</td><td>${new Date(r.created_at).toLocaleString()}</td><td><button class="ghost" data-pr="${r.user_id}" data-pn="${esc(r.username)}">Reset password</button></td></tr>`).join("")}</tbody></table></div>`:"")+
-    `<h4 class="h">Accounts (${ps.length})${pend?` · <span style="color:var(--gold)">${pend} awaiting approval</span>`:""}</h4><div class="tbar"><input id="uq" placeholder="Search name, username, role…" value="${esc(UQ)}"></div><div class="tw"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${pg.slice.map(x=>{const self=x.id==me.id;return `<tr><td>${esc(x.full_name)}</td><td>${esc(x.username)}</td>
-    <td>${self?ROLES[x.role]:`<select data-r="${x.id}">${opt(ROLES,x.role,1)}</select>`}</td><td>${self?"active":`<select data-s="${x.id}">${opt({pending:"pending",active:"active",disabled:"disabled"},x.status)}</select>`}</td>
-    <td>${self?"":`<button class="ghost" data-pr="${x.id}" data-pn="${esc(x.username)}">Reset password</button> <button class="ghost" data-d="${x.id}" data-pn="${esc(x.username)}">Remove</button>`}</td></tr>`}).join("")}</tbody></table></div>`+(list.length?pg.bar:'<div class="empty" style="margin-top:10px">No matching accounts.</div>');
-    PAGER.bind(v,pg.st,draw);
-    const qi=$("#uq");qi.oninput=e=>{UQ=e.target.value;PAGER.reset("users");draw();const n=$("#uq");n.focus();n.setSelectionRange(UQ.length,UQ.length)};
-    v.querySelectorAll("[data-r]").forEach(e=>e.onchange=async()=>{const r=await sb.from("profiles").update({role:e.value||null}).eq("id",e.dataset.r);if(r.error)alert("Could not change role.");else find(e.dataset.r).role=e.value||null});
-    v.querySelectorAll("[data-s]").forEach(e=>e.onchange=async()=>{const p=find(e.dataset.s);if(e.value=="active"&&!p.role){alert("Assign a role first.");e.value=p.status;return}
-      const r=await sb.from("profiles").update({status:e.value}).eq("id",p.id);if(r.error)alert("Could not change status.");else p.status=e.value});
-    v.querySelectorAll("[data-pr]").forEach(e=>e.onclick=async()=>{const t=prompt("Temporary password for "+e.dataset.pn+" (min 6 characters). They must change it at next login.");if(!t)return;
-      const r=await sb.rpc("admin_reset_password",{target:e.dataset.pr,temp_pw:t});alert(r.error?"Failed: "+r.error.message:"Done. Give "+e.dataset.pn+" the temporary password.")});
-    v.querySelectorAll("[data-d]").forEach(e=>e.onclick=async()=>{if(!confirm("Permanently remove "+e.dataset.pn+"?"))return;const r=await sb.rpc("admin_delete_user",{target:e.dataset.d});if(r.error)alert(r.error.message)})};
-  draw()}
-
-function backup(v){v.innerHTML=`<div class="box"><p>All data lives in your Supabase database and is shared by every user and device. Use this for an offline copy.</p><button class="btn" id="bd">Download backup</button>
-<label>Restore from backup file (updates names, roles and status of existing accounts)</label><input type="file" id="rf" accept=".json"><div class="msg" id="bm" style="color:var(--gold)"></div></div>`;
-  $("#bd").onclick=async()=>{const r=await sb.from("profiles").select("username,full_name,role,status,created_at");if(r.error)return $("#bm").textContent="Backup failed.";
-    const at=new Date().toISOString(),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({app:"north005",at,profiles:r.data},null,1)],{type:"application/json"}));a.download="north005-backup-"+at.slice(0,10)+".json";a.click();$("#bm").textContent="Backup downloaded."};
-  $("#rf").onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(j.app!="north005")throw 0;let n=0;
-    for(const p of j.profiles||[]){const r=await sb.from("profiles").update({full_name:p.full_name,role:p.role,status:p.status}).eq("username",p.username);if(!r.error)n++}
-    $("#bm").textContent="Restored "+n+" account(s)."}catch(x){$("#bm").textContent="Invalid backup file."}}}
-
-let LO=false;
-async function out(){LO=true;await sb.auth.signOut();LO=false;clear();me=null;cur=null;if(ch){sb.removeChannel(ch);ch=null}tab("L");show("auth")}
-$("#out").onclick=out;$("#menu").onclick=()=>$("#side").classList.toggle("open");
-sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT"&&me&&!LO){me=null;cur=null;if(ch){sb.removeChannel(ch);ch=null}tab("L");show("auth");setMsg("Your session ended. Please log in again.")}});
-document.querySelectorAll(".eye").forEach(b=>b.onclick=()=>{const i=b.previousElementSibling,s=i.type=="password";i.type=s?"text":"password";b.classList.toggle("on",s);b.setAttribute("aria-label",s?"Hide password":"Show password")});
-(()=>{const P=$("#parts");for(let i=0;i<22;i++){const e=document.createElement("i"),s=3+Math.random()*7;e.style.cssText=`left:${Math.random()*100}%;width:${s}px;height:${s}px;animation-duration:${9+Math.random()*12}s;animation-delay:${-Math.random()*14}s;--dx:${Math.round(Math.random()*80-40)}px`;P.appendChild(e)}
-  [...document.querySelector(".card").children].forEach((e,i)=>e.style.setProperty("--n",i))})();
-const wait=ms=>new Promise(r=>setTimeout(r,ms));
-(async()=>{show("boot");
-  const toLogin=m=>{show("auth");if(m)setMsg(m)};
-  try{
-    const{data:{session}}=await sb.auth.getSession();if(!session)return toLogin("");
-    let p=null,err=null;
-    for(let i=0;i<3&&!p;i++){const r=await sb.from("profiles").select("*").eq("id",session.user.id).maybeSingle();p=r.data;err=r.error;if(!p&&err&&i<2)await wait(700*(i+1));else if(!p&&!err)break}
-    if(!p){if(err){toLogin("Could not reach the server. Check your connection, then reload this page.");return}
-      await sb.auth.signOut();return toLogin("Your account could not be found. Please log in again.")}
-    if(p.status!="active"){await sb.auth.signOut();return toLogin(p.status=="pending"?"Your account is still awaiting approval.":"This account is disabled. Contact the Administrator.")}
-    me=p;if(p.must_change){tab("C");toLogin("Set a new password to continue.");$("#msg").style.color="#8fe3a8";return}
-    enter();
-  }catch(e){toLogin("Could not restore your session. Please log in.")}
-})();
-</script></body></html>
+</body></html>

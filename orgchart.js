@@ -1,19 +1,19 @@
 (()=>{
 const NAME="ORGANIZATIONAL CHART",BUCKET="org-photos";
-const O={path:[],sub:false,busy:false,data:null,dir:""};window.ORG=O;
+const O={path:[],sub:false,busy:false,data:null,dir:"",at:0};window.ORG=O;
 const MU=()=>window.MUNI||{};
 const areaOf=m=>m=="SAMAL"?"SAMAL":"DDN",AL={DDN:"Davao del Norte",SAMAL:"Samal"};
 const num=c=>parseInt(String(c||"").replace(/\D/g,""))||0;
 const ini=s=>String(s||"?").replace(/[^A-Za-z0-9 ]/g,"").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()||"?";
 const safeKey=k=>k.replace(/[^\w.\-]+/g,"_").slice(0,80);
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
-function subscribe(){if(O.sub)return;O.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!O.busy&&!document.querySelector("dialog[open]")){O.data=null;go(cur)}},900)};let c=sb.channel("org");["profiles","registry_outlets","registry_relievers","org_photos"].forEach(x=>c=c.on("postgres_changes",{event:"*",schema:"public",table:x},f));c.subscribe()}
+function subscribe(){if(O.sub)return;O.sub=true;let t;const f=()=>{O.data=null;clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!O.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};let c=sb.channel("org");["profiles","registry_outlets","org_photos"].forEach(x=>c=c.on("postgres_changes",{event:"*",schema:"public",table:x},f));c.subscribe()}
 
 async function loadData(){
-  const[P,Ot,Rl,PH]=await Promise.all([all("profiles","id,full_name,username,role,status,area"),all("registry_outlets","booth_code,municipality,sr_name,collector,status"),all("registry_relievers","name,municipality,status"),all("org_photos")]);
+  const[P,Ot,PH]=await Promise.all([all("profiles","id,full_name,username,role,status,area"),all("registry_outlets","booth_code,municipality,sr_name,collector,status"),all("org_photos")]);
   const paths=PH.map(p=>p.photo_path),su=paths.length?(await sb.storage.from(BUCKET).createSignedUrls(paths,3600)).data||[]:[];
   const url=new Map(PH.map(p=>[p.key,su.find(s=>s.path==p.photo_path)?.signedUrl||null]));
-  O.data={P:P.filter(p=>p.status=="active"),Ot,Rl,PH,url}}
+  O.data={P:P.filter(p=>p.status=="active"),Ot,PH,url};O.at=Date.now()}
 
 async function squareJpeg(file,w=640,h=800){const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)});
   const c=document.createElement("canvas");c.width=w;c.height=h;const s=Math.max(w/img.width,h/img.height),dw=img.width*s,dh=img.height*s;c.getContext("2d").drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);return new Promise(r=>c.toBlob(r,"image/jpeg",.86))}
@@ -26,11 +26,11 @@ async function uploadPhoto(key,file,after){
   O.busy=false;after()}
 
 function build(){
-  const{P,Ot,Rl,url}=O.data,by=r=>P.filter(p=>p.role==r).sort((a,b)=>(a.full_name||"").localeCompare(b.full_name||""));
+  const{P,Ot,url}=O.data,by=r=>P.filter(p=>p.role==r).sort((a,b)=>(a.full_name||"").localeCompare(b.full_name||""));
   const admins=by("admin"),sups=by("supervisor"),collAcc=by("collector"),grp={DDN:new Map(),SAMAL:new Map()},una={DDN:[],SAMAL:[]};
   Ot.forEach(o=>{const a=areaOf(o.municipality);if(!o.collector){una[a].push(o);return}if(!grp[a].has(o.collector))grp[a].set(o.collector,[]);grp[a].get(o.collector).push(o)});
   const accFor=n=>collAcc.find(a=>(a.full_name||"").toUpperCase().split(/\s+/).includes(n)||(a.username||"").toUpperCase().startsWith(n));
-  return{admins,sups,grp,una,accFor,url,Rl,Ot}}
+  return{admins,sups,grp,una,accFor,url,Ot}}
 
 const card=(o,adm)=>`<div class="pc${o.big?" big":""}${o.sm?" sm":""}" data-k="${esc(o.key||"")}" data-nav="${esc(o.nav||"")}" style="--i:${o.i||0}"${o.nav?' tabindex="0"':""}>
   <div class="ph"${o.url?` style="background-image:url('${o.url}')"`:""}>${o.url?"":`<span>${esc(o.icon||ini(o.name))}</span>`}</div>
@@ -39,18 +39,14 @@ const card=(o,adm)=>`<div class="pc${o.big?" big":""}${o.sm?" sm":""}" data-k="$
 
 async function org(v){
   subscribe();const adm=me.role=="admin";
-  if(!O.data){v.innerHTML='<div class="empty">Loading…</div>';await loadData()}
+  if(!O.data||Date.now()-O.at>30000){v.innerHTML='<div class="empty">Loading…</div>';await loadData()}
   const B=build(),path=O.path,url=k=>B.url.get(k)||null;let feat="",row="",crumb="Organization",pg=null,msg="";
   const supCard=(s,i,nav)=>({key:"p:"+s.id,nav,name:s.full_name||s.username,role:"Supervisor"+(s.area?" · "+s.area:""),sub:s.area?AL[s.area]:"Set area ✎",url:url("p:"+s.id),i,edit:adm?s.id:null});
   const collName=n=>{const a=B.accFor(n);return a?(a.full_name||a.username):n};
   if(!path.length){
     feat=B.admins.length?B.admins.map(a=>card({key:"p:"+a.id,name:a.full_name||a.username,role:"Operations Administrator",url:url("p:"+a.id),big:1},adm)).join(""):card({name:"Operations Administrator",role:"Top of the organization",big:1,icon:"★"},adm);
-    row=B.sups.map((s,i)=>card(supCard(s,i,"sup:"+s.id),adm)).join("")+card({nav:"rel",name:"Relievers",role:"Team",sub:B.Rl.length+" people",icon:"👥",i:B.sups.length},adm);
+    row=B.sups.map((s,i)=>card(supCard(s,i,"sup:"+s.id),adm)).join("");
     if(!B.sups.length)msg="No active supervisors yet. Set a user's role to Field Sales Supervisor in User & Access Management.";
-  }else if(path[0]=="rel"){
-    crumb="Relievers";feat=card({name:"Relievers",role:"Team",sub:B.Rl.length+" people",icon:"👥",big:1},false);
-    const list=B.Rl.slice().sort((a,b)=>a.name.localeCompare(b.name));pg=PAGER.paginate("org_rel",list);
-    row=pg.slice.map((r,i)=>card({key:"r:"+r.name,name:r.name,role:"Reliever",sub:r.municipality||"",url:url("r:"+r.name),i,sm:1},adm)).join("");if(!list.length)msg="No relievers in Master Registry yet."
   }else{
     const sid=path[0].split(":")[1],s=B.sups.find(x=>x.id==sid);if(!s){O.path=[];return org(v)}
     if(path.length==1){crumb=(s.full_name||s.username)+(s.area?" · "+AL[s.area]:"");feat=card(supCard(s,0,""),adm);
@@ -64,7 +60,7 @@ async function org(v){
       row=pg.slice.map((o,i)=>card({key:"t:"+o.booth_code,name:o.sr_name||"(no teller)",role:o.booth_code,sub:MU()[o.municipality]?MU()[o.municipality][0]:"",url:url("t:"+o.booth_code),i,sm:1},adm)).join("");if(!list.length)msg="No booths here."}
   }
   v.innerHTML=`<div class="stage${O.dir=="back"?" sback":""}" id="stg">${path.length?'<button class="back" id="bk4" aria-label="Back">←</button>':""}<div class="deco"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <img class="olg" src="assets/logo.png" alt="North-005"><div class="crumb">${esc(crumb)}</div><div class="feat">${feat}</div><div class="row">${row}</div>${msg?`<div class="omsg">${esc(msg)}</div>`:""}<div class="opg" id="opg"></div></div>
+  <img class="olg" src="assets/logo.webp" alt="North-005"><div class="crumb">${esc(crumb)}</div><div class="feat">${feat}</div><div class="row">${row}</div>${msg?`<div class="omsg">${esc(msg)}</div>`:""}<div class="opg" id="opg"></div></div>
   ${adm?`<div class="chip" style="margin-top:8px">Tap 📷 on a card (or drag an image onto it) to add a photo. Click a supervisor, then a collector, to go deeper.</div>`:""}`;
   O.dir="";const stg=$("#stg");
   if(pg&&pg.bar){$("#opg").innerHTML=pg.bar;PAGER.bind($("#opg"),pg.st,()=>org(v))}

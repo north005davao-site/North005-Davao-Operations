@@ -1,0 +1,26 @@
+{
+ "name": "North005 Davao ERP",
+ "short_name": "North005",
+ "start_url": "./",
+ "display": "standalone",
+ "background_color": "#0a1a3f",
+ "theme_color": "#0a1a3f",
+ "icons": [
+  {
+   "src": "assets/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "assets/icon-maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

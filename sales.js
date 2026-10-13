@@ -190,7 +190,7 @@ function showReport(v,snap,adm){
   <div class="tbar"><input id="sq" placeholder="Search outlets…" value="${esc(T.q)}"></div><div id="stb"></div>`;
   document.querySelectorAll("[data-a]").forEach(b=>{b.classList.toggle("on",b.dataset.a==T.area);b.onclick=()=>{T.area=b.dataset.a;T.q="";showReport(v,snap,adm)}});
   $("#cp").onclick=async()=>{try{await navigator.clipboard.writeText(msgText(snap.date,t));$("#sm").textContent="Copied."}catch(e){$("#sm").textContent="Select the text and copy it manually."}};
-  $("#dx").onclick=async()=>{$("#sm").textContent="Preparing Excel…";try{const wb=buildXlsx(ExcelJS,snap,T.area),buf=await wb.xlsx.writeBuffer(),a=document.createElement("a");
+  $("#dx").onclick=async()=>{$("#sm").textContent="Preparing Excel…";try{await LIB.exceljs();const wb=buildXlsx(ExcelJS,snap,T.area),buf=await wb.xlsx.writeBuffer(),a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));a.download=(T.area=="DDN"?"DDN":"SAMAL")+" - "+longD(snap.date)+".xlsx";a.click();$("#sm").textContent="Downloaded."}catch(e){$("#sm").textContent="Could not create the Excel file."}};
   if(adm)$("#dd").onclick=async()=>{if(!confirm("Delete the saved report for "+dmy(snap.date)+"?"))return;const{error}=await sb.from("daily_reports").delete().eq("report_date",snap.date);if(error)return $("#sm").textContent="Could not delete.";T.date=null;sales(v)};
   const draw=()=>{const q=T.q.toLowerCase(),rows=A.outlets.filter(o=>!q||[o.code,o.teller,o.collector,o.address].join(" ").toLowerCase().includes(q)),pg=PAGER.paginate("sales_"+T.area,rows);
@@ -200,7 +200,7 @@ function showReport(v,snap,adm){
 
 async function startImport(v,file){
   const sp=$("#sp");sp.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">Reading file…</div>';T.busy=true;
-  try{P={...parseAccounting(XLSX,await file.arrayBuffer())};if(!P.rows.length)throw 0}catch(e){T.busy=false;sp.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">That file does not look like the accounting summary (needs Draw Date, Outlet Name, Gross… columns).</div>';return}
+  try{await LIB.xlsx();P={...parseAccounting(XLSX,await file.arrayBuffer())};if(!P.rows.length)throw 0}catch(e){T.busy=false;sp.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">That file does not look like the accounting summary (needs Draw Date, Outlet Name, Gross… columns).</div>';return}
   P.date=P.date||new Date().toISOString().slice(0,10);P.pick={};await preview(v)}
 
 async function preview(v){

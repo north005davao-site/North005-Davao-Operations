@@ -1,3 +1,7 @@
+(()=>{const P={},js=u=>P[u]||(P[u]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=u;s.onload=res;s.onerror=()=>{delete P[u];rej(new Error("load failed"))};document.head.appendChild(s)})),
+  css=u=>P[u]||(P[u]=new Promise(res=>{const l=document.createElement("link");l.rel="stylesheet";l.href=u;l.onload=res;l.onerror=res;document.head.appendChild(l)})),CD="https://cdn.jsdelivr.net/npm/";
+  window.LIB={js,xlsx:()=>window.XLSX?Promise.resolve():js(CD+"xlsx@0.18.5/dist/xlsx.full.min.js"),exceljs:()=>window.ExcelJS?Promise.resolve():js(CD+"exceljs@4.4.0/dist/exceljs.min.js"),
+    leaflet:()=>Promise.all([css(CD+"leaflet@1.9.4/dist/leaflet.css"),window.L?0:js(CD+"leaflet@1.9.4/dist/leaflet.js")])}})();
 (()=>{
 const MUNI={"PANABO":["Panabo City","#22c55e"],"STO. TOMAS":["Sto. Tomas","#facc15"],"CARMEN":["Carmen","#ef4444"],"KAPALONG":["Kapalong","#3b82f6"],"TAGUM":["Tagum City","#a855f7"],"TALAINGOD":["Talaingod","#ec4899"],"SAMAL":["Samal","#06b6d4"]};
 const COLLECTORS=["JOHN","JAYSON","MUHLEN","JASON","MAC²","NELSON","CHARLIE"];
@@ -100,7 +104,7 @@ async function registry(v){
   $("#rq").oninput=e=>{S.q=e.target.value;PAGER.reset("reg_"+S.tab);draw()};$("#rm").onchange=e=>{S.m=e.target.value;PAGER.reset("reg_"+S.tab);draw()};
   if(adm){$("#ra").onclick=()=>edit(S.tab,{},()=>registry(v));
     $("#ra2").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const p=$("#rp");p.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">Reading file…</div>';
-      try{const list=parseAreas(XLSX,await f.arrayBuffer());if(!list.length)throw 0;const ex=new Map(S.O.map(o=>[o.booth_code,o])),upd=list.filter(x=>ex.has(x.booth_code)),add=list.filter(x=>!ex.has(x.booth_code)),by={};list.forEach(x=>by[x.collector]=(by[x.collector]||0)+1);
+      try{await LIB.xlsx();const list=parseAreas(XLSX,await f.arrayBuffer());if(!list.length)throw 0;const ex=new Map(S.O.map(o=>[o.booth_code,o])),upd=list.filter(x=>ex.has(x.booth_code)),add=list.filter(x=>!ex.has(x.booth_code)),by={};list.forEach(x=>by[x.collector]=(by[x.collector]||0)+1);
         p.innerHTML=`<div class="box" style="max-width:none;margin-bottom:12px"><b>Areas found in your report</b><div style="margin:6px 0">${Object.entries(by).map(([k,n])=>`<span class="pill" style="background:var(--gold)">${esc(k)}</span> ${n}`).join(" &nbsp; ")}</div><div>${upd.length} existing booth(s) will get their collector.</div>${add.length?`<div style="margin-top:4px">${add.length} booth(s) are not in the registry and will be added with a ⚠ “Needs details” flag: ${add.map(x=>esc(x.booth_code)).join(", ")}</div>`:""}<p style="color:var(--mu);font-size:13px">Nothing else is changed or deleted.</p><button class="btn" id="ok2">Confirm</button> <button class="ghost" id="no2">Cancel</button><span id="pg2" class="chip" style="margin-left:10px"></span></div>`;
         $("#no2").onclick=()=>p.innerHTML="";
         $("#ok2").onclick=async()=>{S.busy=true;$("#ok2").disabled=true;try{
@@ -109,7 +113,7 @@ async function registry(v){
           S.busy=false;registry(v)}catch(x){S.busy=false;$("#pg2").textContent="Failed. Nothing more was changed.";$("#ok2").disabled=false}}}
       catch(x){p.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">I could not find collector area sheets (names ending in “AREA”) in that file.</div>'}};
     $("#ru").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const p=$("#rp");p.innerHTML='<div class="box">Reading file…</div>';
-      try{const r=parseMasterlist(XLSX,await f.arrayBuffer());if(!r.outlets.length&&!r.relievers.length)throw 0;
+      try{await LIB.xlsx();const r=parseMasterlist(XLSX,await f.arrayBuffer());if(!r.outlets.length&&!r.relievers.length)throw 0;
         const by={};r.outlets.forEach(o=>by[o.municipality]=(by[o.municipality]||0)+1);const nc=r.outlets.filter(o=>o.lat==null);
         p.innerHTML=`<div class="box" style="max-width:none;margin-bottom:12px"><b>Ready to import</b><div style="margin:6px 0">${r.outlets.length} outlets · ${r.relievers.length} relievers · ${nc.length} outlet(s) without valid coordinates${nc.length?` (${nc.map(o=>esc(o.booth_code)).join(", ")})`:""}</div><div style="margin-bottom:8px">${Object.entries(by).map(([k,n])=>`${pill(k)} ${n}`).join(" &nbsp; ")}</div><p style="color:var(--mu);font-size:13px;margin:0 0 10px">Existing booths are updated by booth code; collector and address fields you set are kept. Nothing is deleted.</p><button class="btn" id="ok">Confirm import</button> <button class="ghost" id="no">Cancel</button><span id="pg" class="chip" style="margin-left:10px"></span></div>`;
         $("#no").onclick=()=>p.innerHTML="";
@@ -122,6 +126,7 @@ async function registry(v){
   draw();subscribe()}
 
 async function ets(v){
+  v.innerHTML='<div class="empty">Loading map…</div>';await LIB.leaflet();
   v.innerHTML=`<div class="tbar" id="lg"></div><div id="map"></div>`;
   const O=(await all("registry_outlets")).filter(o=>o.lat!=null),miss=0;
   if(mapState){mapState.map.remove();mapState=null}
