@@ -3,6 +3,8 @@ const MN=["January","February","March","April","May","June","July","August","Sep
 const money=n=>"₱"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const fd=s=>{if(!s)return"";const[y,m,d]=s.split("-").map(Number);return MN[m-1].slice(0,3)+" "+d+", "+y};
+const addMonth=s=>{const[y,m,d]=s.split("-").map(Number),last=new Date(y,m+1,0).getDate();return iso(new Date(y,m,Math.min(d,last)))};
+const cov=(a,b)=>a&&b?fd(a)+" → "+fd(b):"";
 const KIND={rental:"Outlet Rental",load:"Load Allowance"};
 const R={kind:"rental",tab:"rec",m:iso(new Date()).slice(0,7),q:"",sub:false};window.RENTS=R;
 const MU=window.MUNI||{};
@@ -29,7 +31,8 @@ async function rent(v){
   if(adm)$("#ab").onclick=()=>planDlg(null,O,()=>rent(v),R.kind);
   const missing=plans.filter(p=>p.active&&!recBy.has(p.id)&&p.monthly_amount!=null);
   if(adm&&R.tab=="rec"&&missing.length){const g=$("#gn");g.hidden=false;g.textContent=`Generate ${lab(R.m)} (${missing.length})`;
-    g.onclick=async()=>{g.disabled=true;const rows=missing.map(p=>({plan_id:p.id,period:R.m+"-01",amount:p.monthly_amount,paid_to:p.paid_to||null}));
+    g.onclick=async()=>{g.disabled=true;const prevR=(await sb.from("rental_records").select("plan_id,period,due_date").lt("period",R.m+"-01").order("period",{ascending:false}).range(0,4999)).data||[],lastBy=new Map();prevR.forEach(x=>{if(!lastBy.has(x.plan_id))lastBy.set(x.plan_id,x)});
+      const rows=missing.map(p=>{const pr=lastBy.get(p.id),cs=pr&&pr.due_date&&pr.due_date.slice(0,7)==R.m?pr.due_date:R.m+"-01";return{plan_id:p.id,period:R.m+"-01",cover_start:cs,due_date:addMonth(cs),amount:p.monthly_amount,paid_to:p.paid_to||null}});
       const{error}=await sb.from("rental_records").upsert(rows,{onConflict:"plan_id,period",ignoreDuplicates:true});if(error){g.disabled=false;return alert("Could not generate records.")}rent(v)}}
   const draw=()=>{const q=R.q.toLowerCase(),match=(p,r)=>!q||[p.booth_code,info(p).teller,(r&&r.paid_to)||p.paid_to||""].join(" ").toLowerCase().includes(q);
     if(R.tab=="set"){$("#rk").innerHTML="";const f=plans.filter(p=>match(p,null)),pg=PAGER.paginate(key,f);
@@ -38,7 +41,7 @@ async function rent(v){
     const all2=plans.filter(p=>p.active||recBy.has(p.id)).map(p=>({p,r:recBy.get(p.id)})),rows=all2.filter(x=>match(x.p,x.r)),pg=PAGER.paginate(key,rows);
     const due=all2.reduce((s,x)=>s+(x.r?Number(x.r.amount):0),0),paid=all2.reduce((s,x)=>s+(x.r&&x.r.status=="paid"?Number(x.r.amount):0),0),nog=all2.filter(x=>!x.r).length;
     $("#rk").innerHTML=`<div class="kpis" style="margin-bottom:12px"><div class="kpi"><small>Total for ${lab(R.m)}</small><b>${money(due)}</b></div><div class="kpi"><small>Paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Unpaid</small><b>${money(due-paid)}</b></div><div class="kpi"><small>Booths</small><b>${all2.length}</b>${nog?`<small>${nog} without a record</small>`:""}</div></div>`;
-    $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Paid to</th><th>Amount</th><th>Status</th><th>Date paid</th></tr></thead><tbody>${pg.slice.map(({p,r})=>{const i=info(p);return`<tr data-p="${p.id}"${adm?' style="cursor:pointer"':""}><td><b>${esc(p.booth_code)}</b></td><td>${esc(i.teller)}</td><td>${muni(i.muni)}</td><td>${esc((r&&r.paid_to)||p.paid_to||"")}</td><td>${r?money(r.amount):'<span style="color:var(--mu)">—</span>'}</td><td>${r?(r.status=="paid"?pill("Paid","#22c55e"):pill("Unpaid","#f59e0b")):pill("No record","#94a3b8")}</td><td>${r?fd(r.paid_on):""}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:`<div class="empty"><b>${KIND[R.kind].toUpperCase()}</b><br>No booths set up yet.${adm?" Use “+ Add Booth” to start.":""}</div>`;
+    $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Paid to</th><th>Amount</th><th>Status</th><th>Cover period</th></tr></thead><tbody>${pg.slice.map(({p,r})=>{const i=info(p);return`<tr data-p="${p.id}"${adm?' style="cursor:pointer"':""}><td><b>${esc(p.booth_code)}</b></td><td>${esc(i.teller)}</td><td>${muni(i.muni)}</td><td>${esc((r&&r.paid_to)||p.paid_to||"")}</td><td>${r?money(r.amount):'<span style="color:var(--mu)">—</span>'}</td><td>${r?(r.status=="paid"?pill("Paid","#22c55e"):(r.due_date&&r.due_date<iso(new Date())?pill("Overdue","#ef4444"):pill("Unpaid","#f59e0b"))):pill("No record","#94a3b8")}</td><td>${r?cov(r.cover_start,r.due_date):""}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:`<div class="empty"><b>${KIND[R.kind].toUpperCase()}</b><br>No booths set up yet.${adm?" Use “+ Add Booth” to start.":""}</div>`;
     if(adm)$("#rb").querySelectorAll("tr[data-p]").forEach(t=>t.onclick=()=>{const p=plans.find(x=>x.id==t.dataset.p);recDlg(p,recBy.get(p.id),R.m,reg.get(p.booth_code),()=>rent(v))});PAGER.bind($("#rb"),pg.st,draw)};
   draw()}
 
@@ -57,18 +60,23 @@ function planDlg(p,O,done,kind){
   if(p)d.querySelector("#pd").onclick=async()=>{if(!confirm("Delete this booth and ALL its monthly records?"))return;const{error}=await sb.from("rental_plans").delete().eq("id",p.id);if(error)return d.querySelector("#pm2").textContent="Could not delete.";d.close_();done()}}
 
 function recDlg(p,r,m,o,done){
+  const t0=iso(new Date()),st0=r?(r.cover_start||r.paid_on||m+"-01"):(m==t0.slice(0,7)?t0:m+"-01"),due0=r?(r.due_date||addMonth(st0)):addMonth(st0);let manual=!!(r&&r.due_date&&r.due_date!=addMonth(st0));
   const d=dlg(`<h4 style="margin:0 0 4px">${esc(p.booth_code)} — ${KIND[p.kind]}</h4><div class="chip">${esc(lab(m))}${o&&o.sr_name?" · "+esc(o.sr_name):""}</div>
-  <div class="g2"><div><label>Amount (₱) for this month</label><input type="number" id="ra" min="0" step="0.01" inputmode="decimal" value="${r?r.amount:(p.monthly_amount??"")}"></div><div><label>Status</label><select id="rs"><option value="unpaid"${!r||r.status=="unpaid"?" selected":""}>Unpaid</option><option value="paid"${r&&r.status=="paid"?" selected":""}>Paid</option></select></div></div>
-  <div class="g2"><div><label>Date paid</label><input type="date" id="rd" value="${r&&r.paid_on?r.paid_on:""}"></div><div><label>Paid to</label><input id="rp" value="${esc((r&&r.paid_to)||p.paid_to||"")}"></div></div><label>Note — optional</label><input id="rn" value="${esc(r?r.note||"":"")}">
-  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">This only changes ${esc(lab(m))}. To change the default for future months, edit the booth in Booth setup.</p>
+  <div class="g2"><div><label>Amount (₱)</label><input type="number" id="ra" min="0" step="0.01" inputmode="decimal" value="${r?r.amount:(p.monthly_amount??"")}"></div><div><label>Status</label><select id="rs"><option value="unpaid"${!r||r.status=="unpaid"?" selected":""}>Unpaid</option><option value="paid"${r&&r.status=="paid"?" selected":""}>Paid</option></select></div></div>
+  <div class="g2"><div><label>Payment / cover start date</label><input type="date" id="rd" value="${st0}"></div><div><label>Due date (set automatically)</label><input type="date" id="rdd" value="${due0}"></div></div>
+  <div class="chip" id="rcv" style="margin-top:6px"></div>
+  <div class="g2"><div><label>Paid to</label><input id="rp" value="${esc((r&&r.paid_to)||p.paid_to||"")}"></div><div><label>Note — optional</label><input id="rn" value="${esc(r?r.note||"":"")}"></div></div>
+  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">Pick the payment date and the due date becomes one month later (you can still change it). To change the default amount for future months, edit the booth in Booth setup.</p>
   <div class="msg" id="rm2"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="rsv">Save</button><button class="ghost" id="rx">Cancel</button>${r?'<button class="ghost" id="rdl" style="margin-left:auto">Delete record</button>':""}</div>`);
-  const st=d.querySelector("#rs"),dt=d.querySelector("#rd");st.onchange=()=>{if(st.value=="paid"&&!dt.value)dt.value=iso(new Date());if(st.value=="unpaid")dt.value=""};
+  const sd=d.querySelector("#rd"),dd=d.querySelector("#rdd"),cv=d.querySelector("#rcv"),show=()=>cv.textContent=sd.value&&dd.value?"Cover period: "+fd(sd.value)+" → "+fd(dd.value):"";show();
+  sd.oninput=()=>{if(sd.value&&!manual)dd.value=addMonth(sd.value);show()};dd.oninput=()=>{manual=true;show()};
   d.querySelector("#rx").onclick=d.close_;
-  d.querySelector("#rsv").onclick=async()=>{const msg=d.querySelector("#rm2"),a=parseFloat(d.querySelector("#ra").value);if(!(a>=0))return msg.textContent="Enter the amount.";
-    const body={amount:a,status:st.value,paid_on:st.value=="paid"?(dt.value||iso(new Date())):null,paid_to:d.querySelector("#rp").value.trim()||null,note:d.querySelector("#rn").value.trim()||null};let error;
-    if(r)({error}=await sb.from("rental_records").update(body).eq("id",r.id));else({error}=await sb.from("rental_records").insert({...body,plan_id:p.id,period:m+"-01"}));
-    if(error)return msg.textContent="Could not save.";d.close_();done()};
-  if(r)d.querySelector("#rdl").onclick=async()=>{if(!confirm("Delete this month's record?"))return;const{error}=await sb.from("rental_records").delete().eq("id",r.id);if(error)return d.querySelector("#rm2").textContent="Could not delete.";d.close_();done()}}
+  d.querySelector("#rsv").onclick=async()=>{const msg=d.querySelector("#rm2"),a=parseFloat(d.querySelector("#ra").value),s=sd.value,due=dd.value,paid=d.querySelector("#rs").value=="paid";
+    if(!(a>=0))return msg.textContent="Enter the amount.";if(!s)return msg.textContent="Choose the payment date.";if(!due||due<s)return msg.textContent="The due date must be on or after the payment date.";
+    const body={amount:a,status:paid?"paid":"unpaid",paid_on:paid?s:null,cover_start:s,due_date:due,period:s.slice(0,7)+"-01",paid_to:d.querySelector("#rp").value.trim()||null,note:d.querySelector("#rn").value.trim()||null};let error;
+    if(r)({error}=await sb.from("rental_records").update(body).eq("id",r.id));else({error}=await sb.from("rental_records").insert({...body,plan_id:p.id}));
+    if(error)return msg.textContent=/duplicate/i.test(error.message)?"This booth already has a record for "+lab(s.slice(0,7))+".":"Could not save.";R.m=s.slice(0,7);d.close_();done()};
+  if(r)d.querySelector("#rdl").onclick=async()=>{if(!confirm("Delete this record?"))return;const{error}=await sb.from("rental_records").delete().eq("id",r.id);if(error)return d.querySelector("#rm2").textContent="Could not delete.";d.close_();done()}}
 
 window.MODS=Object.assign(window.MODS||{},{"OUTLET RENTALS & LOAD ALLOWANCE":rent});
 })();
