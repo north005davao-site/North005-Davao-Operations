@@ -1,5 +1,5 @@
 NORTH005 DAVAO ERP - FILES
-Upload ALL of these to GitHub (replace the old ones): index.html, modules.js, sales.js, ca.js, rent.js, dash.js, and the assets folder.
+Upload ALL of these to GitHub (replace the old ones): index.html, modules.js, sales.js, ca.js, rent.js, dash.js, attendance.js, docs.js, org.js, and the assets folder.
 Vercel redeploys automatically. Then hard-refresh the site (Ctrl+Shift+R) or clear site data on your phone.
 
 FIRST-TIME SETUP FOR SALES & COLLECTION (Administrator)

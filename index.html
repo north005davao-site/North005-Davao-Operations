@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script><script src="modules.js"></script><script src="sales.js"></script><script src="ca.js"></script><script src="rent.js"></script><script src="dash.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><title>North005 Davao ERP</title>
+<html lang="en"><head><meta charset="utf-8"><script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script><script src="modules.js"></script><script src="sales.js"></script><script src="ca.js"></script><script src="rent.js"></script><script src="dash.js"></script><script src="attendance.js"></script><script src="docs.js"></script><script src="org.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><title>North005 Davao ERP</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
 :root{--bg:#0a1a3f;--panel:#10265a;--line:#24407f;--tx:#eef2ff;--mu:#9fb0d8;--gold:#e0b13a;--red:#d1203a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -77,6 +77,15 @@ dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var
 .attn{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13.5px}.attn:last-child{border-bottom:0}.attn>b{min-width:30px;text-align:center;background:var(--gold);color:#1a1300;border-radius:8px;padding:1px 7px}
 .kpi .delta{display:block;margin-top:2px}.delta.up{color:#22c55e}.delta.dn{color:#ef4444}
 @media(max-width:560px){.bars .br{grid-template-columns:78px 1fr 92px}}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer;color:var(--mu);outline:none;transition:.15s;margin-top:8px}.drop b{color:var(--tx)}.drop:hover,.drop.over{border-color:var(--gold);background:rgba(224,177,58,.08)}.drop.act{border-color:var(--gold);box-shadow:0 0 0 3px rgba(224,177,58,.25)}
+.ot{max-width:920px}.ot .top{display:flex;align-items:center;gap:12px;background:var(--panel);border:1.5px solid var(--gold);border-radius:14px;padding:12px 18px;width:fit-content;margin-bottom:4px}.ot .top small{color:var(--mu)}
+.ot .kids{margin-left:22px;padding-left:16px;border-left:2px solid var(--line)}.ot details{margin:8px 0}
+.ot summary{list-style:none;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;cursor:pointer}.ot summary::-webkit-details-marker{display:none}.ot summary:hover{border-color:var(--gold)}
+.ot summary::after{content:"▸";margin-left:6px;color:var(--mu);transition:.15s}.ot details[open]>summary::after{transform:rotate(90deg)}
+.av{width:32px;height:32px;border-radius:50%;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:#fff;flex:none}.av.big{width:44px;height:44px;font-size:15px}
+.nt{display:flex;flex-direction:column;min-width:0;flex:1}.nt small,.lf small{color:var(--mu);font-size:12px}
+.cnt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:1px 9px;color:var(--mu);white-space:nowrap}
+.lf{display:flex;align-items:center;gap:10px;padding:5px 4px;font-size:13.5px;flex-wrap:wrap}.dot{width:9px;height:9px;border-radius:50%;flex:none}
 </style></head><body>
 
 <section id="auth" class="hide"><div class="card">
@@ -155,7 +164,7 @@ function intro(){show("intro");$("#wl").textContent="Welcome, "+me.full_name.spl
   setTimeout(()=>$("#intro").classList.add("out"),3900);setTimeout(()=>{$("#intro").classList.remove("out");enter()},4700)}
 function enter(){show("app");$("#who").textContent=me.full_name+" · "+ROLES[me.role];
   const a=allowed();$("#navs").innerHTML=G.map(([g,it])=>{const f=it.filter(n=>a.includes(n));return f.length?`<div class="grp">${g}</div>`+f.map(n=>`<button class="nav" data-n="${esc(n)}">${esc(n)}</button>`).join(""):""}).join("");
-  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";go(b.dataset.n);$("#side").classList.remove("open")});
+  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";if(window.DOCS)DOCS.id=null;go(b.dataset.n);$("#side").classList.remove("open")});
   go(a.includes(cur)?cur:a[0]);live()}
 function live(){if(ch)sb.removeChannel(ch);
   ch=sb.channel("n005").on("postgres_changes",{event:"*",schema:"public",table:"profiles"},async()=>{
