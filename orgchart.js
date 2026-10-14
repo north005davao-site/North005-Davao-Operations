@@ -60,7 +60,7 @@ async function org(v){
       row=pg.slice.map((o,i)=>card({key:"t:"+o.booth_code,name:o.sr_name||"(no teller)",role:o.booth_code,sub:MU()[o.municipality]?MU()[o.municipality][0]:"",url:url("t:"+o.booth_code),i,sm:1},adm)).join("");if(!list.length)msg="No booths here."}
   }
   v.innerHTML=`<div class="stage${O.dir=="back"?" sback":""}" id="stg">${path.length?'<button class="back" id="bk4" aria-label="Back">←</button>':""}<div class="deco"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <img class="olg" src="assets/logo.webp" alt="North-005"><div class="crumb">${esc(crumb)}</div><div class="feat">${feat}</div><div class="row">${row}</div>${msg?`<div class="omsg">${esc(msg)}</div>`:""}<div class="opg" id="opg"></div></div>
+  <img class="olg" src="${window.LOGO||""}" alt="North-005"><div class="crumb">${esc(crumb)}</div><div class="feat">${feat}</div><div class="row">${row}</div>${msg?`<div class="omsg">${esc(msg)}</div>`:""}<div class="opg" id="opg"></div></div>
   ${adm?`<div class="chip" style="margin-top:8px">Tap 📷 on a card (or drag an image onto it) to add a photo. Click a supervisor, then a collector, to go deeper.</div>`:""}`;
   O.dir="";const stg=$("#stg");
   if(pg&&pg.bar){$("#opg").innerHTML=pg.bar;PAGER.bind($("#opg"),pg.st,()=>org(v))}
