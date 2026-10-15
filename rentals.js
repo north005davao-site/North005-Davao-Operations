@@ -13,7 +13,7 @@ const MU=()=>window.MUNI||{};
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const lab=m=>{const[y,mm]=m.split("-").map(Number);return MN[mm-1]+" "+y};
 function dlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();d.close_=()=>{d.close();d.remove()};return d}
-function subscribe(){if(R.sub)return;R.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!R.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
+function subscribe(){if(R.sub)return;R.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!R.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
   sb.channel("rent").on("postgres_changes",{event:"*",schema:"public",table:"rental_plans"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_records"},f).subscribe()}
 const pill=(t,c)=>`<span class="pill" style="background:${c}">${t}</span>`;
 const muni=m=>MU()[m]?pill(MU()[m][0],MU()[m][1]):esc(m||"");
@@ -31,9 +31,9 @@ async function ensure(plans){
   if(rows.length)await insertRows(rows)}
 
 async function rent(v){
-  subscribe();const adm=me.role=="admin";v.innerHTML='<div class="empty">Loading…</div>';
+  subscribe();const adm=me.role=="admin";LOAD(v);
   const P0=await all("rental_plans");if(adm)try{await ensure(P0)}catch(e){}
-  const[O,P,Rc]=await Promise.all([all("registry_outlets","booth_code,municipality,sr_name,collector,status"),adm?all("rental_plans"):Promise.resolve(P0),sb.from("rental_records").select("*").eq("period",R.m+"-01").range(0,4999)]);
+  const[O,P,Rc]=await Promise.all([all("registry_outlets","booth_code,municipality,sr_name,collector,status"),Promise.resolve(P0),sb.from("rental_records").select("*").eq("period",R.m+"-01").range(0,4999)]);
   const reg=new Map(O.map(o=>[o.booth_code,o])),plans=P.filter(p=>p.kind==R.kind),recBy=new Map((Rc.data||[]).map(r=>[r.plan_id,r]));
   const info=p=>{const o=reg.get(p.booth_code)||{};return{teller:o.sr_name||"",muni:o.municipality||""}};
   v.innerHTML=`<div class="tbar"><button class="chip2" data-k="rental">Outlet Rentals</button><button class="chip2" data-k="load">Load Allowance</button><span style="width:10px"></span><button class="chip2" data-t="rec">Monthly records</button><button class="chip2" data-t="set">Booth setup</button></div>

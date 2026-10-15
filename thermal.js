@@ -7,7 +7,7 @@ const T={date:null,ed:null,sub:false,busy:false};window.THERMAL=T;
 const MU=()=>window.MUNI||{};
 const n0=v=>Number.isFinite(+v)?+v:0;
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
-function subscribe(){if(T.sub)return;T.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!T.ed&&!T.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
+function subscribe(){if(T.sub)return;T.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!T.ed&&!T.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
   let c=sb.channel("thermal");["thermal_days","thermal_lines","thermal_restocks"].forEach(x=>c=c.on("postgres_changes",{event:"*",schema:"public",table:x},f));c.subscribe();
   document.addEventListener("paste",e=>{if(cur!=NAME||T.ed||document.querySelector("dialog[open]"))return;const f=[...(e.clipboardData?.files||[])].find(x=>/^image\//.test(x.type));if(f){e.preventDefault();startFromImage($("#view"),f)}})}
 const normBooth=s=>{s=String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");const m=s.match(/(\d{1,5})$/);return m?"DDN-"+m[1]:String(s||"").trim()};
@@ -21,7 +21,7 @@ function parseHeader(text){const h={},mo={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,ju
 window.THERMAL_PARSE={parseLines,parseHeader,normBooth};
 
 async function thermal(v){subscribe();if(T.ed)return editor(v);
-  v.innerHTML='<div class="empty">Loading…</div>';
+  LOAD(v);
   const[S,R,O]=await Promise.all([sb.from("thermal_summary").select("*").order("report_date",{ascending:false}).range(0,999),all("thermal_restocks"),all("registry_outlets","booth_code,municipality,sr_name")]);
   const days=S.data||[],reg=new Map(O.map(o=>[o.booth_code,o]));if(!T.date||!days.some(d=>d.report_date==T.date))T.date=days[0]?.report_date||null;
   const rs=d=>R.filter(r=>r.restock_date==d).reduce((s,r)=>s+r.rolls,0),remain=d=>d.opening_stock+rs(d.report_date)-d.allocated,day=days.find(d=>d.report_date==T.date);
@@ -69,6 +69,22 @@ async function toCanvas(file,maxW){const img=await new Promise((res,rej)=>{const
 function enhance(c){const x=c.getContext("2d"),im=x.getImageData(0,0,c.width,c.height),d=im.data;let lo=255,hi=0;for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=g;if(g<lo)lo=g;if(g>hi)hi=g}
   const k=255/Math.max(1,hi-lo);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-lo)*k));d[i]=d[i+1]=d[i+2]=g}x.putImageData(im,0,0);return c}
 
+
+// ---- two-column reading (idea: read each column on its own so lines never mix across the page) ----
+const cut=(c,x,y,w,h)=>{const k=document.createElement("canvas");k.width=Math.max(1,Math.floor(w));k.height=Math.max(1,Math.floor(h));k.getContext("2d").drawImage(c,x,y,w,h,0,0,k.width,k.height);return k};
+function splitSheet(c){const W=c.width,H=c.height;return{header:cut(c,0,0,W,H*.14),left:cut(c,0,H*.05,W*.52,H*.93),right:cut(c,W*.46,H*.05,W*.54,H*.93)}}
+function parseColumn(text,col){const out=[];
+  for(const raw of String(text||"").split("\n")){const line=raw.trim().replace(/^[^\w]+/,"");if(!line)continue;const u=line.toUpperCase();
+    if(/STOCK|REPORT|REMAIN|ALLOC|BALANCE|ROLLS|^DATE|^SEP|^OCT|^NOV|^DEC/.test(u))continue;
+    let m=line.match(/\bD[DO0]N[\s\-_]*(\d{3,4})\b/i),code=null,rest="";
+    if(m){code=m[1];rest=line.slice(line.indexOf(m[0])+m[0].length)}else{m=line.match(/\b(\d{3,4})\b/);if(m){code=m[1];rest=line.slice(line.indexOf(m[0])+m[0].length)}}
+    if(!code)continue;const r=rest.match(/[\-–—~:_=.\s]+(\d{1,3})\b/);let rolls=r?+r[1]:null,a=false;if(rolls==null||rolls<=0||rolls>500){rolls=5;a=true}
+    out.push({booth:"DDN-"+code,rolls,u:a,a,c:col})}
+  return out}
+const prep=(c,thr)=>{const k=cut(c,0,0,c.width,c.height);enhance(k);if(thr){const x=k.getContext("2d"),im=x.getImageData(0,0,k.width,k.height),d=im.data;for(let i=0;i<d.length;i+=4){const g=d[i]>=thr?255:0;d[i]=d[i+1]=d[i+2]=g}x.putImageData(im,0,0)}return k};
+const toB64=(c,maxW=1600)=>new Promise(res=>{const s=Math.min(1,maxW/c.width),k=cut(c,0,0,c.width,c.height);let o=k;if(s<1){o=document.createElement("canvas");o.width=Math.round(c.width*s);o.height=Math.round(c.height*s);o.getContext("2d").drawImage(c,0,0,o.width,o.height)}o.toBlob(b=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.readAsDataURL(b)},"image/jpeg",.85)});
+window.THERMAL_PARSE.parseColumn=parseColumn;
+
 async function editor(v){
   const E=T.ed,adm=true;let urlP=null;
   if(E.image&&E.image.path&&!E.image.url){const{data}=await sb.storage.from(BUCKET).createSignedUrl(E.image.path,600);E.image.url=data?.signedUrl}
@@ -82,13 +98,13 @@ async function editor(v){
   <label>Quick list — type or paste booth-rolls pairs (e.g. <i>764-5 1475-5 398-10</i> or one per line)</label><textarea id="eq" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font:inherit" placeholder="764-5, 1475-5, 398-10 …"></textarea><button class="ghost" id="ea" style="margin-top:6px">Add these to the list</button></div></div>
   <div class="dc" style="margin-top:14px"><h4>Lines <span class="chip" id="esum"></span></h4><div class="tw" style="max-height:60vh;overflow:auto"><table><thead><tr><th>#</th><th>Booth code</th><th>Rolls</th><th>Teller</th><th>Check</th><th></th></tr></thead><tbody id="elb"></tbody></table></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="ghost" id="er">+ Add row</button></div><div class="msg" id="em" style="color:#ff8b9b"></div><div style="display:flex;gap:8px;margin-top:6px"><button class="btn" id="es" style="width:auto;padding:10px 24px;margin:0">Save summary</button><button class="ghost" id="ec2">Cancel</button></div></div>`;
   const body=$("#elb"),cnt=()=>{const c={};E.lines.forEach(l=>{const b=normBooth(l.booth);if(b)c[b]=(c[b]||0)+1});return c};
-  const flags=l=>{const b=normBooth(l.booth),f=[];if(!b)return"";if(l.u)f.push('<span class="pill" style="background:#eab308;color:#111">check digits</span>');if(!reg.has(b))f.push('<span class="pill" style="background:#f59e0b">not in registry</span>');if(cnt()[b]>1)f.push('<span class="pill" style="background:#ef4444">duplicate</span>');return f.join(" ")};
+  const flags=l=>{const b=normBooth(l.booth),f=[];if(!b)return"";if(l.a)f.push('<span class="pill" style="background:#eab308;color:#111">assumed 5 — check</span>');else if(l.u)f.push('<span class="pill" style="background:#eab308;color:#111">check digits</span>');if(!reg.has(b))f.push('<span class="pill" style="background:#f59e0b">not in registry</span>');if(cnt()[b]>1)f.push('<span class="pill" style="background:#ef4444">duplicate</span>');return f.join(" ")};
   const sum=()=>{const tot=E.lines.reduce((s,l)=>s+n0(l.rolls),0),op=n0($("#eop2").value),w=$("#ew").value===""?null:n0($("#ew").value),rem=op+restock()-tot;
     $("#esum").innerHTML=`${E.lines.length} lines · <b>${tot}</b> rolls given · remaining <b${rem<0?' style="color:#ef4444"':""}>${rem}</b>${w!=null&&w!=tot?` · <span style="color:#f59e0b">⚠ sheet says ${w} (difference ${tot-w})</span>`:w!=null?' · <span style="color:#22c55e">✔ matches the sheet</span>':""}`;
     body.querySelectorAll("tr").forEach((tr,i)=>{const l=E.lines[i];tr.querySelector(".fl").innerHTML=flags(l);tr.querySelector(".tn").textContent=reg.get(normBooth(l.booth))?.sr_name||""})};
-  const rows=(focus)=>{body.innerHTML=E.lines.map((l,i)=>`<tr${l.u?' style="background:rgba(234,179,8,.14)"':""}><td>${i+1}</td><td><input class="bi" data-i="${i}" value="${esc(l.booth)}" style="min-width:110px"></td><td><input class="ri" data-i="${i}" type="number" min="0" step="1" inputmode="numeric" value="${l.rolls??""}" style="width:90px"></td><td class="tn" style="color:var(--mu)"></td><td class="fl"></td><td><button class="ghost" data-x="${i}">✕</button></td></tr>`).join("");
-    body.querySelectorAll(".bi").forEach(e=>{e.oninput=()=>{E.lines[+e.dataset.i].booth=e.value;E.lines[+e.dataset.i].u=false;sum()};e.onblur=()=>{const n=normBooth(e.value);if(n&&n!=e.value){e.value=n;E.lines[+e.dataset.i].booth=n;sum()}};e.onkeydown=k=>{if(k.key=="Enter"){k.preventDefault();body.querySelector(`.ri[data-i="${e.dataset.i}"]`).focus()}}});
-    body.querySelectorAll(".ri").forEach(e=>{e.oninput=()=>{E.lines[+e.dataset.i].rolls=e.value;E.lines[+e.dataset.i].u=false;sum()};e.onkeydown=k=>{if(k.key=="Enter"){k.preventDefault();const i=+e.dataset.i;if(i==E.lines.length-1){E.lines.push({booth:"",rolls:""});rows(i+1)}else body.querySelector(`.bi[data-i="${i+1}"]`).focus()}}});
+  const rows=(focus)=>{body.innerHTML=E.lines.map((l,i)=>`<tr${l.u?' style="background:rgba(234,179,8,.14)"':""}><td>${i+1}${l.c?` <span class="chip">${l.c}</span>`:""}</td><td><input class="bi" data-i="${i}" value="${esc(l.booth)}" style="min-width:110px"></td><td><input class="ri" data-i="${i}" type="number" min="0" step="1" inputmode="numeric" value="${l.rolls??""}" style="width:90px"></td><td class="tn" style="color:var(--mu)"></td><td class="fl"></td><td><button class="ghost" data-x="${i}">✕</button></td></tr>`).join("");
+    body.querySelectorAll(".bi").forEach(e=>{e.oninput=()=>{E.lines[+e.dataset.i].booth=e.value;E.lines[+e.dataset.i].u=false;E.lines[+e.dataset.i].a=false;sum()};e.onblur=()=>{const n=normBooth(e.value);if(n&&n!=e.value){e.value=n;E.lines[+e.dataset.i].booth=n;sum()}};e.onkeydown=k=>{if(k.key=="Enter"){k.preventDefault();body.querySelector(`.ri[data-i="${e.dataset.i}"]`).focus()}}});
+    body.querySelectorAll(".ri").forEach(e=>{e.oninput=()=>{E.lines[+e.dataset.i].rolls=e.value;E.lines[+e.dataset.i].u=false;E.lines[+e.dataset.i].a=false;sum()};e.onkeydown=k=>{if(k.key=="Enter"){k.preventDefault();const i=+e.dataset.i;if(i==E.lines.length-1){E.lines.push({booth:"",rolls:""});rows(i+1)}else body.querySelector(`.bi[data-i="${i+1}"]`).focus()}}});
     body.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{E.lines.splice(+b.dataset.x,1);rows()});sum();if(focus!=null){const f=body.querySelector(`.bi[data-i="${focus}"]`);f&&f.focus()}};
   rows();
   ["ed","eop2","ew","en"].forEach(id=>$("#"+id).oninput=()=>{E.date=$("#ed").value;E.opening=$("#eop2").value;E.written=$("#ew").value;E.note=$("#en").value;sum()});
@@ -96,22 +112,28 @@ async function editor(v){
   $("#er").onclick=()=>{E.lines.push({booth:"",rolls:""});rows(E.lines.length-1)};
   $("#ea").onclick=()=>{const p=parseLines($("#eq").value);if(!p.length){$("#em").textContent="I couldn't find any booth-rolls pairs like 764-5 in that text.";return}$("#em").textContent="";p.forEach(x=>E.lines.push({booth:x.booth,rolls:x.rolls}));$("#eq").value="";rows()};
   const cancel=()=>{if(E.image&&E.image.url&&E.image.file)URL.revokeObjectURL(E.image.url);T.ed=null;go(cur)};$("#ec").onclick=cancel;$("#ec2").onclick=cancel;
+  const verdict=(n,tot,w)=>w==null?"":(w==tot?" The lines add up to the total written on the sheet ("+w+").":" ⚠ The lines add up to "+tot+" but the sheet says "+w+" (difference "+(tot-w)+") — check the highlighted rows against the photo.");
   if($("#ei"))$("#ei").onclick=async()=>{const b=$("#ei"),pr=$("#eop");b.disabled=true;pr.style.color="var(--gold)";pr.textContent="Preparing the photo…";
-    try{const c=await toCanvas(E.image,1800),blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.85)),b64=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.readAsDataURL(blob)});
-      pr.textContent="Reading the handwriting… this can take up to a minute.";const r=await sb.functions.invoke("read-thermal",{body:{image:b64,media_type:"image/jpeg"}});
+    try{const full=await toCanvas(E.image,2400),S=splitSheet(full),images=[{label:"HEADER",data:await toB64(S.header),media_type:"image/jpeg"},{label:"LEFT COLUMN",data:await toB64(S.left),media_type:"image/jpeg"},{label:"RIGHT COLUMN",data:await toB64(S.right),media_type:"image/jpeg"}];
+      pr.textContent="Reading the handwriting column by column… this can take up to a minute.";const r=await sb.functions.invoke("read-thermal",{body:{images}});
       const x=r.data;if(r.error&&!x)throw new Error("invoke");
       if(x&&x.error){const m={NO_KEY:"AI reading is not set up yet. Add your Anthropic API key in Supabase (Edge Functions → Secrets → ANTHROPIC_API_KEY), then try again.",AI_ERROR:"The AI service returned an error (code "+(x.status||"?")+"). "+(x.status==401?"Check the API key.":x.status==400||x.status==404?"Check the model name or credits.":""),PARSE:"The AI answered in an unexpected format. Please try again.",BAD_IMAGE:"That photo could not be used. Try a clearer or smaller photo.",FORBIDDEN:"Only the Administrator can use this.",UNAUTHORIZED:"Please log in again."}[x.error]||"The reader could not finish. Please try again.";pr.style.color="#ff8b9b";pr.textContent=m;b.disabled=false;return}
       if(x.date&&!E.existing){E.date=x.date;$("#ed").value=x.date}if(x.allocated_total!=null){E.written=x.allocated_total;$("#ew").value=x.allocated_total}
       if(x.stocks_on_hand!=null&&!(E.prev&&E.prev.from)&&!(+E.opening>0)){E.opening=x.stocks_on_hand;$("#eop2").value=x.stocks_on_hand}
-      const add=(x.lines||[]).map(l=>({booth:"DDN-"+l.booth,rolls:l.rolls,u:!!l.uncertain}));if(E.lines.length&&add.length&&!confirm("Replace the "+E.lines.length+" lines already in the list with the "+add.length+" lines the AI read?"))E.lines.push(...add);else if(add.length)E.lines=add;
-      rows();const un=add.filter(l=>l.u).length;pr.style.color="var(--gold)";
-      pr.textContent=add.length?"The AI read "+add.length+" lines"+(un?" ("+un+" marked “check digits”)":"")+(x.stocks_on_hand!=null?". Sheet says stocks on hand: "+x.stocks_on_hand:"")+". Please compare with the photo.":"The AI could not find booth lines in this photo."}
+      const add=(x.lines||[]).map(l=>({booth:"DDN-"+l.booth,rolls:l.rolls,u:!!l.uncertain||!!l.assumed,a:!!l.assumed,c:l.col||""}));if(E.lines.length&&add.length&&!confirm("Replace the "+E.lines.length+" lines already in the list with the "+add.length+" lines the AI read?"))E.lines.push(...add);else if(add.length)E.lines=add;
+      rows();const un=add.filter(l=>l.u).length,tot=E.lines.reduce((s,l)=>s+n0(l.rolls),0);pr.style.color="var(--gold)";
+      pr.textContent=add.length?"The AI read "+add.length+" lines"+(un?" ("+un+" flagged to check)":"")+(x.stocks_on_hand!=null?". Sheet says stocks on hand: "+x.stocks_on_hand:"")+"."+verdict(add.length,tot,x.allocated_total):"The AI could not find booth lines in this photo."}
     catch(e){pr.style.color="#ff8b9b";pr.textContent="The reader could not be reached. Please try again or type the numbers."}b.disabled=false};
-  if($("#eo"))$("#eo").onclick=async()=>{const b=$("#eo"),pr=$("#eop");b.disabled=true;try{pr.textContent="Loading the reader (first time takes a moment)…";await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
-      const c=enhance(await toCanvas(E.image,2000));const r=await Tesseract.recognize(c,"eng",{tessedit_pageseg_mode:"6",logger:m=>{if(m.status=="recognizing text")pr.textContent="Reading… "+Math.round(m.progress*100)+"%"}});
-      const text=r.data.text,h=parseHeader(text),p=parseLines(text);if(h.date&&!E.existing){E.date=h.date;$("#ed").value=h.date}if(h.opening!=null&&!E.opening){E.opening=h.opening;$("#eop2").value=h.opening}if(h.written!=null){E.written=h.written;$("#ew").value=h.written}
-      if(p.length){p.forEach(x=>E.lines.push({booth:x.booth,rolls:x.rolls}));rows();pr.textContent="Found "+p.length+" lines. Please check every one against the photo."}else pr.textContent="Couldn't read booth numbers from this photo. Please type them using the quick list box.";sum()}
-    catch(e){pr.textContent="The reader could not run. Please type the numbers using the quick list box."}b.disabled=false};
+  if($("#eo"))$("#eo").onclick=async()=>{const b=$("#eo"),pr=$("#eop");b.disabled=true;pr.style.color="var(--gold)";
+    try{pr.textContent="Loading the reader (first time takes a moment)…";await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+      const full=await toCanvas(E.image,2400),S=splitSheet(full),run=async(cv,name)=>(await Tesseract.recognize(cv,"eng",{tessedit_pageseg_mode:"6",logger:m=>{if(m.status=="recognizing text")pr.textContent=name+"… "+Math.round(m.progress*100)+"%"}})).data.text||"";
+      const pass=async thr=>{const H=await run(prep(S.header,thr),"Reading the header"),L=await run(prep(S.left,thr),"Reading the left column"),R=await run(prep(S.right,thr),"Reading the right column");return{H,L,R,left:parseColumn(L,"L"),right:parseColumn(R,"R")}};
+      let best=await pass(0);if(best.left.length+best.right.length<8){pr.textContent="Trying a second pass with stronger contrast…";const b2=await pass(135);if(b2.left.length+b2.right.length>best.left.length+best.right.length)best=b2}
+      const all=best.H+" "+best.L+" "+best.R,h=parseHeader(all);if(h.date&&!E.existing){E.date=h.date;$("#ed").value=h.date}if(h.opening!=null&&!(+E.opening>0)){E.opening=h.opening;$("#eop2").value=h.opening}if(h.written!=null){E.written=h.written;$("#ew").value=h.written}
+      const add=[...best.left,...best.right];
+      if(add.length){E.lines.push(...add);rows();const tot=E.lines.reduce((s,l)=>s+n0(l.rolls),0);pr.textContent="Found "+add.length+" lines ("+best.left.length+" left, "+best.right.length+" right). Please check every one against the photo."+verdict(add.length,tot,h.written!=null?h.written:null)}
+      else pr.textContent="Couldn't read booth numbers from this photo (free OCR can't read handwriting). Use “Read handwriting with AI” or type them in the quick list box.";sum()}
+    catch(e){pr.style.color="#ff8b9b";pr.textContent="The reader could not run. Please type the numbers using the quick list box."}b.disabled=false};
   $("#es").onclick=async()=>{const m=$("#em");m.textContent="";if(!E.date)return m.textContent="Choose the date.";const clean=E.lines.map(l=>({booth_code:normBooth(l.booth),rolls:l.rolls})).filter(l=>l.booth_code||String(l.rolls)!=="");
     for(const l of clean){if(!l.booth_code)return m.textContent="A row is missing its booth code.";if(!(Number.isInteger(+l.rolls)&&+l.rolls>=0&&String(l.rolls)!==""))return m.textContent="Check the rolls for "+l.booth_code+" (whole number).";l.rolls=+l.rolls}
     if(E.opening===""||!(+E.opening>=0))return m.textContent="Enter the opening stock.";const b=$("#es");b.disabled=true;T.busy=true;

@@ -161,7 +161,7 @@ function buildXlsx(EJ,snap,area,threshold=3000){
 let T={date:null,area:"DDN",q:"",busy:false,sub:false},P=null;
 const COLL=["JOHN","JAYSON","MUHLEN","JASON","MAC²","NELSON","CHARLIE"];
 async function allOutlets(){let out=[],i=0;for(;;){const{data,error}=await sb.from("registry_outlets").select("*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
-function subscribe(){if(T.sub)return;T.sub=true;let tm;sb.channel("sales").on("postgres_changes",{event:"*",schema:"public",table:"daily_reports"},()=>{clearTimeout(tm);tm=setTimeout(()=>{if(cur=="SALES & COLLECTION"&&!T.busy)go(cur)},500)}).subscribe()}
+function subscribe(){if(T.sub)return;T.sub=true;let tm;sb.channel("sales").on("postgres_changes",{event:"*",schema:"public",table:"daily_reports"},()=>{clearTimeout(tm);tm=setTimeout(()=>{if(!QUIETW()&&cur=="SALES & COLLECTION"&&!T.busy)go(cur)},500)}).subscribe()}
 const money=n=>Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function sales(v){

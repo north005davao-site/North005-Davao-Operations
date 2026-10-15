@@ -11,13 +11,13 @@ const MU=()=>window.MUNI||{};
 const KEYS=["bets","pay","comm","pal","gross","sal"],KL={bets:"Total Bets",pay:"Payouts",comm:"Commission",pal:"Palawan",gross:"Gross",sal:"Salary"};
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const nav=n=>{if(window.CAS)CAS.view="list";go(n)};
-function subscribe(){if(D.sub)return;D.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(cur=="DASHBOARD"&&!document.querySelector("dialog[open]"))go(cur)},800)};
+function subscribe(){if(D.sub)return;D.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(!QUIETW()&&cur=="DASHBOARD"&&!document.querySelector("dialog[open]"))go(cur)},800)};
   let c=sb.channel("dash");["daily_reports","cash_advances","ca_payments","rental_plans","rental_records","registry_outlets","profiles","password_requests"].forEach(t=>c=c.on("postgres_changes",{event:"*",schema:"public",table:t},f));c.subscribe()}
 const sumT=(a,b)=>{const o={};KEYS.forEach(k=>o[k]=Number(a?.[k]||0)+Number(b?.[k]||0));return o};
 const pickT=(s,area)=>area=="DDN"?s.ddn:area=="SAMAL"?s.samal:sumT(s.ddn,s.samal);
 
 async function dash(v){
-  subscribe();const adm=me.role=="admin";v.innerHTML='<div class="empty">Loading dashboard…</div>';
+  subscribe();const adm=me.role=="admin";LOAD(v);
   const today=new Date(),ym=iso(today).slice(0,7);
   const[S,CA,PL,RR,O,PN,PR]=await Promise.all([
     sb.from("report_summary").select("*").order("report_date",{ascending:false}).range(0,399),

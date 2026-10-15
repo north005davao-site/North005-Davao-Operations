@@ -9,13 +9,13 @@ const hrs=(a,b)=>{if(!a)return"—";if(!b)return"In progress";const m=Math.max(0
 const loc=(la,ln)=>la!=null?`<a href="https://www.google.com/maps?q=${la},${ln}" target="_blank" rel="noopener" style="color:var(--gold)">📍 Map</a>`:'<span style="color:var(--mu)">no location</span>';
 const ERR={ALREADY_IN:"You already timed in today.",NOT_IN:"You have no open time-in for today.",BOOTH_REQUIRED:"Choose the booth you are covering today.",NOT_ALLOWED:"Your account can't use attendance."};
 const emsg=e=>{const m=(e&&e.message)||"";for(const k in ERR)if(m.includes(k))return ERR[k];return "Something went wrong. Please try again."};
-function subscribe(){if(A.sub)return;A.sub=true;let t;sb.channel("att").on("postgres_changes",{event:"*",schema:"public",table:"attendance"},()=>{clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!document.querySelector("dialog[open]"))go(cur)},600)}).subscribe()}
+function subscribe(){if(A.sub)return;A.sub=true;let t;sb.channel("att").on("postgres_changes",{event:"*",schema:"public",table:"attendance"},()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!document.querySelector("dialog[open]"))go(cur)},600)}).subscribe()}
 function getPos(){return new Promise(res=>{if(!navigator.geolocation)return res(null);navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}),()=>res(null),{enableHighAccuracy:true,timeout:15000,maximumAge:0})})}
 
 async function att(v){subscribe();clearInterval(A.tick);return me.role=="admin"?monitor(v):mine(v)}
 
 async function mine(v){
-  const td=today();v.innerHTML='<div class="empty">Loading…</div>';
+  const td=today();LOAD(v);
   const{data}=await sb.from("attendance").select("*").order("work_date",{ascending:false}).range(0,399);const rows=data||[],t0=rows.find(r=>r.work_date==td);
   const rel=me.role=="reliever";let booths=[];
   if(rel&&!t0){const r=await sb.rpc("booth_options");booths=r.data||[]}
@@ -37,7 +37,7 @@ async function mine(v){
 
 async function monitor(v){
   if(!A.date)A.date=today();
-  v.innerHTML='<div class="empty">Loading…</div>';
+  LOAD(v);
   const[P,R]=await Promise.all([sb.from("profiles").select("id,full_name,username,role").in("role",["rep","reliever"]).eq("status","active").range(0,999),sb.from("attendance").select("*").eq("work_date",A.date).range(0,999)]);
   const staff=P.data||[],rec=new Map((R.data||[]).map(r=>[r.user_id,r]));
   const rows=staff.map(s=>({s,r:rec.get(s.id)})).sort((a,b)=>(a.r?0:1)-(b.r?0:1)||(a.s.full_name||"").localeCompare(b.s.full_name||""));

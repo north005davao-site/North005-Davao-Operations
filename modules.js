@@ -62,7 +62,7 @@ async function all(t){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).
 const pill=m=>MUNI[m]?`<span class="pill" style="background:${MUNI[m][1]}">${MUNI[m][0]}</span>`:esc(m||"");
 function subscribe(){if(subbed)return;subbed=true;
   sb.channel("reg").on("postgres_changes",{event:"*",schema:"public",table:"registry_outlets"},bump).on("postgres_changes",{event:"*",schema:"public",table:"registry_relievers"},bump).subscribe()}
-function bump(){clearTimeout(timer);timer=setTimeout(()=>{if(!document.querySelector("dialog[open]")&&(cur=="MASTER REGISTRY"||cur=="ETS LIVE TRACKING")&&!S.busy)go(cur)},500)}
+function bump(){clearTimeout(timer);timer=setTimeout(()=>{if(!QUIETW()&&!document.querySelector("dialog[open]")&&(cur=="MASTER REGISTRY"||cur=="ETS LIVE TRACKING")&&!S.busy)go(cur)},500)}
 
 const OF=[["booth_code","Booth code"],["sr_name","Sales representative"],["municipality","Municipality","m"],["barangay","Barangay"],["purok","Purok"],["sr_id_no","SR ID no."],["oa_name","Operations Administrator"],["oa_id_no","OA ID no."],["status","Status","s"],["sr_contact","SR contact #"],["pos_no","POS no."],["coords","Coordinates (lat, lng)"],["collector","Collector / Area","c"],["address","Address (for reports)"],["needs_details","Needs details","k"]];
 const RF=[["name","Reliever name"],["contact","Contact #"],["municipality","Municipality"],["status","Status","s"]];
@@ -87,9 +87,9 @@ function edit(kind,row,done){
   const x=d.querySelector("#dx");if(x)x.onclick=async()=>{if(!confirm("Delete this record?"))return;const{error}=await sb.from(tb).delete().eq("id",row.id);if(error)return m.textContent="Could not delete.";close();done()}}
 
 async function registry(v){
-  const adm=me.role=="admin";
+  const adm=me.role=="admin";const soft=v.dataset.mod==cur&&S.O.length>0,fetchAll=async()=>{[S.O,S.R]=await Promise.all([all("registry_outlets"),all("registry_relievers")]);S.O.sort(natural);S.R.sort((a,b)=>a.name.localeCompare(b.name))};if(soft)await fetchAll();v.dataset.mod=cur;
   v.innerHTML=`<div class="tbar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label><label class="ghost up">Import Areas (Excel report)<input type="file" id="ra2" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
-  [S.O,S.R]=await Promise.all([all("registry_outlets"),all("registry_relievers")]);S.O.sort(natural);S.R.sort((a,b)=>a.name.localeCompare(b.name));
+  if(!soft)await fetchAll();
   const draw=()=>{
     v.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t==S.tab));$("#rm").classList.toggle("hide",S.tab!="o");
     const q=S.q.toLowerCase(),has=r=>Object.values(r).some(x=>x!=null&&String(x).toLowerCase().includes(q));

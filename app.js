@@ -1,5 +1,16 @@
 const SB_URL="https://aplntnljisjpjvfblvlu.supabase.co",SB_KEY="sb_publishable_CnYeee1LF3BwV55pjUUsOw_6PT8-u9_";
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}),$=s=>document.querySelector(s);
+window.LASTWRITE=0;window.QUIETW=()=>Date.now()-window.LASTWRITE<2500;
+(()=>{const f=sb.from.bind(sb);sb.from=t=>{const q=f(t);return new Proxy(q,{get(o,k){const v=o[k];if(k==="insert"||k==="update"||k==="upsert"||k==="delete")return(...x)=>{window.LASTWRITE=Date.now();return v.apply(o,x)};return typeof v==="function"?v.bind(o):v}})};const r=sb.rpc.bind(sb);sb.rpc=(...x)=>{window.LASTWRITE=Date.now();return r(...x)}})();
+let lastMod=null;window.LOAD=v=>{if(v.dataset.mod!==cur){v.innerHTML='<div class="empty">Loading…</div>';v.dataset.mod=cur}};
+const ini=s=>String(s||"?").replace(/[^A-Za-z0-9 ]/g,"").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()||"?";
+window.PHOTO={
+  async crop(file,w=640,h=800){const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)});const c=document.createElement("canvas");c.width=w;c.height=h;const s=Math.max(w/img.width,h/img.height),dw=img.width*s,dh=img.height*s;c.getContext("2d").drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);URL.revokeObjectURL(img.src);return new Promise(r=>c.toBlob(r,"image/jpeg",.86))},
+  async signed(p){if(!p)return null;const{data}=await sb.storage.from("profile-photos").createSignedUrl(p,3600);return data?data.signedUrl:null},
+  async uploadProfile(pid,file){const blob=await PHOTO.crop(file),path=`${pid}/${Date.now()}.jpg`,up=await sb.storage.from("profile-photos").upload(path,blob,{contentType:"image/jpeg"});if(up.error)throw up.error;
+    const{data:old}=await sb.from("profiles").select("photo_path").eq("id",pid).maybeSingle(),r=await sb.from("profiles").update({photo_path:path}).eq("id",pid);if(r.error)throw r.error;
+    if(old&&old.photo_path)sb.storage.from("profile-photos").remove([old.photo_path]);return path},
+  async removeProfile(pid){const{data:old}=await sb.from("profiles").select("photo_path").eq("id",pid).maybeSingle(),r=await sb.from("profiles").update({photo_path:null}).eq("id",pid);if(r.error)throw r.error;if(old&&old.photo_path)await sb.storage.from("profile-photos").remove([old.photo_path])}};
 const G=[["CORE OPERATIONS",["DASHBOARD","MASTER REGISTRY","SALES & COLLECTION","ETS LIVE TRACKING"]],
 ["FINANCE & PROPERTY",["CASH ADVANCE (C.A) & PAYMENTS","OUTLET RENTALS & LOAD ALLOWANCE"]],
 ["WORKFORCE & TOOLS",["USER & ACCESS MANAGEMENT","ATTENDANCE / WORKFORCE MONITORING","ORGANIZATIONAL CHART","EMPLOYEE DOCUMENTS","THERMAL PAPER DAILY SUMMARY"]],
@@ -60,28 +71,39 @@ addEventListener("keydown",e=>{if(e.key=="Enter"&&!$("#auth").classList.contains
 
 function intro(){show("intro");$("#wl").textContent="Welcome, "+me.full_name.split(" ")[0];
   setTimeout(()=>$("#intro").classList.add("out"),3900);setTimeout(()=>{$("#intro").classList.remove("out");enter()},4700)}
-function enter(){show("app");$("#who").textContent=me.full_name+" · "+ROLES[me.role];
+async function hdrAvatar(){const e=$("#hav");if(!e)return;e.textContent=ini(me.full_name);e.style.backgroundImage="";if(me.photo_path){const u=await PHOTO.signed(me.photo_path);if(u){e.style.backgroundImage=`url('${u}')`;e.textContent=""}}}
+function enter(){show("app");$("#who").textContent=me.full_name+" · "+ROLES[me.role];hdrAvatar();
   const a=allowed();$("#navs").innerHTML=G.map(([g,it])=>{const f=it.filter(n=>a.includes(n));return f.length?`<div class="grp">${g}</div>`+f.map(n=>`<button class="nav" data-n="${esc(n)}">${esc(n)}</button>`).join(""):""}).join("");
   document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";if(window.DOCS)DOCS.id=null;if(window.THERMAL)THERMAL.ed=null;if(window.ORG){ORG.path=[];ORG.data=null}go(b.dataset.n);$("#side").classList.remove("open")});
   go(a.includes(cur)?cur:a[0]);live()}
 function live(){if(ch)sb.removeChannel(ch);
   ch=sb.channel("n005").on("postgres_changes",{event:"*",schema:"public",table:"profiles"},async()=>{
     const old=me;const p=await loadMe();if(!p||p.status!="active"){await out();return}
-    if(p.role!=old.role){enter();return}if(cur=="USER & ACCESS MANAGEMENT")go(cur)})
+    if(p.photo_path!==old.photo_path)hdrAvatar();if(p.role!=old.role){enter();return}if(cur=="USER & ACCESS MANAGEMENT"&&!QUIETW())go(cur)})
   .on("postgres_changes",{event:"*",schema:"public",table:"password_requests"},()=>{if(cur=="USER & ACCESS MANAGEMENT")go(cur)}).subscribe()}
-async function go(n){cur=n;try{localStorage.setItem("n005_mod",n)}catch(e){}$("#ttl").textContent=n;document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("on",b.dataset.n==n));
+async function go(n){const v0=$("#view");if(lastMod!==n)v0.dataset.mod="";lastMod=n;cur=n;try{localStorage.setItem("n005_mod",n)}catch(e){}$("#ttl").textContent=n;document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("on",b.dataset.n==n));
   const v=$("#view");
   if(window.MODS&&MODS[n])return MODS[n](v);
   if(n==ACC)return acct(v);if(n=="USER & ACCESS MANAGEMENT")return users(v);if(n=="BACK UP & RESTORE")return backup(v);
   v.innerHTML=`<div class="empty"><b>${esc(n)}</b><br>No records yet. This module is empty and ready to be configured.</div>`}
 
-function acct(v){v.innerHTML=`<div class="box"><label>Full name</label><input id="an" value="${esc(me.full_name)}"><label>Username</label><input value="${esc(me.username)}" disabled><label>Role</label><input value="${esc(ROLES[me.role])}" disabled>
-<label>New password (leave blank to keep)</label><input id="ap" type="password" autocomplete="new-password"><button class="btn" id="as">Save changes</button><div class="msg" id="am" style="color:var(--gold)"></div></div>`;
+function acct(v){
+  v.innerHTML=`<div class="box"><div class="avwrap"><div class="avl" id="avl" tabindex="0" title="Click, drop an image, or press Ctrl+V to paste"></div><div><button class="ghost" id="avu">Upload photo</button> <button class="ghost" id="avr">Remove photo</button><div class="chip" style="margin-top:8px">JPG, PNG or WEBP. Click the photo, drop an image on it, or paste with Ctrl+V. This is also your picture on the Organizational Chart.</div><div class="msg" id="avm" style="min-height:18px;color:var(--gold);text-align:left"></div></div></div>
+  <label>Full name</label><input id="an" value="${esc(me.full_name)}"><label>Username</label><input value="${esc(me.username)}" disabled><label>Role</label><input value="${esc(ROLES[me.role])}" disabled>
+  <label>New password (leave blank to keep)</label><input id="ap" type="password" autocomplete="new-password"><button class="btn" id="as">Save changes</button><div class="msg" id="am" style="color:var(--gold)"></div></div>`;
+  const paint=async()=>{const el=$("#avl");if(!el)return;el.style.backgroundImage="";el.textContent=ini(me.full_name);if(me.photo_path){const u=await PHOTO.signed(me.photo_path);if(u&&$("#avl")){$("#avl").style.backgroundImage=`url('${u}')`;$("#avl").textContent=""}}};paint();
+  const up=async f=>{const m=$("#avm");if(!f||!/^image\//.test(f.type)){if(m)m.textContent="Please choose an image file.";return}if(f.size>20*1048576){m.textContent="That image is too large (max 20 MB).";return}
+    m.style.color="var(--gold)";m.textContent="Uploading…";try{me.photo_path=await PHOTO.uploadProfile(me.id,f);m.textContent="Photo updated.";paint();hdrAvatar()}catch(e){m.style.color="#ff8b9b";m.textContent="Could not upload the photo."}};
+  window.__accUp=up;const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=()=>{if(inp.files[0])up(inp.files[0]);inp.value=""};
+  $("#avu").onclick=()=>inp.click();$("#avl").onclick=()=>inp.click();
+  const av=$("#avl");av.ondragover=e=>{e.preventDefault();av.classList.add("over")};av.ondragleave=()=>av.classList.remove("over");av.ondrop=e=>{e.preventDefault();av.classList.remove("over");up([...e.dataTransfer.files][0])};
+  $("#avr").onclick=async()=>{if(!me.photo_path)return;if(!confirm("Remove your profile photo?"))return;try{await PHOTO.removeProfile(me.id);me.photo_path=null;paint();hdrAvatar();$("#avm").textContent="Photo removed."}catch(e){$("#avm").textContent="Could not remove the photo."}};
   $("#as").onclick=async()=>{const m=$("#am"),p=$("#ap").value,n=$("#an").value.trim()||me.full_name;
     if(p&&p.length<MINPW)return m.textContent="Password must be at least "+MINPW+" characters.";
     let r=await sb.from("profiles").update({full_name:n}).eq("id",me.id);if(r.error)return m.textContent="Could not save.";
     if(p){r=await sb.auth.updateUser({password:p});if(r.error)return m.textContent=r.error.message}
-    me.full_name=n;$("#who").textContent=n+" · "+ROLES[me.role];$("#ap").value="";m.textContent="Saved."}}
+    me.full_name=n;$("#who").textContent=n+" · "+ROLES[me.role];hdrAvatar();$("#ap").value="";m.textContent="Saved."}}
+document.addEventListener("paste",e=>{if(cur!=ACC||!window.__accUp)return;const f=[...(e.clipboardData?.files||[])].find(x=>/^image\//.test(x.type));if(f){e.preventDefault();window.__accUp(f)}});
 
 let UQ="";
 async function users(v){

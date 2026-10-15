@@ -11,14 +11,14 @@ const open=r=>Number(r.paid)<Number(r.amount);
 const pill=r=>open(r)?'<span class="pill" style="background:#f59e0b">Open</span>':'<span class="pill" style="background:#22c55e">Paid</span>';
 
 function dlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();d.close_=()=>{d.close();d.remove()};return d}
-function subscribe(){if(C.sub)return;C.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(cur=="CASH ADVANCE (C.A) & PAYMENTS"&&!document.querySelector("dialog[open]"))go(cur)},500)};
+function subscribe(){if(C.sub)return;C.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(!QUIETW()&&cur=="CASH ADVANCE (C.A) & PAYMENTS"&&!document.querySelector("dialog[open]"))go(cur)},500)};
   sb.channel("ca").on("postgres_changes",{event:"*",schema:"public",table:"cash_advances"},f).on("postgres_changes",{event:"*",schema:"public",table:"ca_payments"},f).subscribe()}
 
 async function ca(v){subscribe();return C.view=="detail"&&C.id?detail(v):list(v)}
 
 async function list(v){
   const adm=me.role=="admin";
-  v.innerHTML=`<div class="empty">Loading…</div>`;
+  LOAD(v);
   const{data}=await sb.from("ca_summary").select("*").order("taken_on",{ascending:false}).range(0,999);const rows=data||[];
   const tA=rows.reduce((s,r)=>s+Number(r.amount),0),tP=rows.reduce((s,r)=>s+Number(r.paid),0);
   v.innerHTML=`<div class="kpis" style="margin-bottom:14px"><div class="kpi"><small>Total advanced</small><b>${money(tA)}</b></div><div class="kpi"><small>Total paid</small><b>${money(tP)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(tA-tP)}</b></div><div class="kpi"><small>Open cash advances</small><b>${rows.filter(open).length}</b></div></div>

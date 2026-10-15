@@ -8,14 +8,14 @@ const Dc={id:null,person:null,q:"",role:"",inc:false,active:null,sub:false,kind:
 const fd=s=>new Date(s).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"});
 const sz=b=>b>=1048576?(b/1048576).toFixed(1)+" MB":Math.max(1,Math.round(b/1024))+" KB";
 const safe=n=>n.replace(/[^\w.\-]+/g,"_").slice(-80);
-function subscribe(){if(Dc.sub)return;Dc.sub=true;let t;let c=sb.channel("docs");["employee_docs","registry_outlets","registry_relievers","profiles"].forEach(x=>c=c.on("postgres_changes",{event:"*",schema:"public",table:x},()=>{clearTimeout(t);t=setTimeout(()=>{if(cur==NAME&&!document.querySelector("dialog[open]")&&!Dc.busy)go(cur)},600)}));c.subscribe();
+function subscribe(){if(Dc.sub)return;Dc.sub=true;let t;let c=sb.channel("docs");["employee_docs","registry_outlets","registry_relievers","profiles"].forEach(x=>c=c.on("postgres_changes",{event:"*",schema:"public",table:x},()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!document.querySelector("dialog[open]")&&!Dc.busy)go(cur)},600)}));c.subscribe();
   document.addEventListener("paste",onPaste)}
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 
 async function docs(v){subscribe();return Dc.id?detail(v):list(v)}
 
 async function list(v){
-  v.innerHTML='<div class="empty">Loading…</div>';
+  LOAD(v);
   const[P,Ot,Rl,D]=await Promise.all([all("profiles","id,full_name,username,role,status"),all("registry_outlets","booth_code,municipality,sr_name,status"),all("registry_relievers","name,municipality,status"),all("employee_docs","id,person_key,doc_type")]);
   const by=new Map();D.forEach(d=>{if(!by.has(d.person_key))by.set(d.person_key,new Set());by.get(d.person_key).add(d.doc_type)});
   const MU=window.MUNI||{},mu=m=>MU[m]?MU[m][0]:(m||"");
