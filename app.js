@@ -74,7 +74,7 @@ function intro(){show("intro");$("#wl").textContent="Welcome, "+me.full_name.spl
 async function hdrAvatar(){const e=$("#hav");if(!e)return;e.textContent=ini(me.full_name);e.style.backgroundImage="";if(me.photo_path){const u=await PHOTO.signed(me.photo_path);if(u){e.style.backgroundImage=`url('${u}')`;e.textContent=""}}}
 function enter(){show("app");$("#who").textContent=me.full_name+" · "+ROLES[me.role];hdrAvatar();
   const a=allowed();$("#navs").innerHTML=G.map(([g,it])=>{const f=it.filter(n=>a.includes(n));return f.length?`<div class="grp">${g}</div>`+f.map(n=>`<button class="nav" data-n="${esc(n)}">${esc(n)}</button>`).join(""):""}).join("");
-  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";if(window.DOCS)DOCS.id=null;if(window.THERMAL)THERMAL.ed=null;if(window.ORG){ORG.path=[];ORG.data=null}go(b.dataset.n);$("#side").classList.remove("open")});
+  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(window.CAS)CAS.view="list";if(window.RENTS){RENTS.view="list";RENTS.id=null}if(window.DOCS)DOCS.id=null;if(window.THERMAL)THERMAL.ed=null;if(window.ORG){ORG.path=[];ORG.data=null}go(b.dataset.n);$("#side").classList.remove("open")});
   go(a.includes(cur)?cur:a[0]);live()}
 function live(){if(ch)sb.removeChannel(ch);
   ch=sb.channel("n005").on("postgres_changes",{event:"*",schema:"public",table:"profiles"},async()=>{

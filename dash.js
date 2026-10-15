@@ -12,7 +12,7 @@ const KEYS=["bets","pay","comm","pal","gross","sal"],KL={bets:"Total Bets",pay:"
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const nav=n=>{if(window.CAS)CAS.view="list";go(n)};
 function subscribe(){if(D.sub)return;D.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(!QUIETW()&&cur=="DASHBOARD"&&!document.querySelector("dialog[open]"))go(cur)},800)};
-  let c=sb.channel("dash");["daily_reports","cash_advances","ca_payments","rental_plans","rental_records","registry_outlets","profiles","password_requests"].forEach(t=>c=c.on("postgres_changes",{event:"*",schema:"public",table:t},f));c.subscribe()}
+  let c=sb.channel("dash");["daily_reports","cash_advances","ca_payments","rental_plans","rental_records","rental_payments","registry_outlets","profiles","password_requests"].forEach(t=>c=c.on("postgres_changes",{event:"*",schema:"public",table:t},f));c.subscribe()}
 const sumT=(a,b)=>{const o={};KEYS.forEach(k=>o[k]=Number(a?.[k]||0)+Number(b?.[k]||0));return o};
 const pickT=(s,area)=>area=="DDN"?s.ddn:area=="SAMAL"?s.samal:sumT(s.ddn,s.samal);
 
@@ -22,7 +22,7 @@ async function dash(v){
   const[S,CA,PL,RR,O,PN,PR]=await Promise.all([
     sb.from("report_summary").select("*").order("report_date",{ascending:false}).range(0,399),
     sb.from("ca_summary").select("*").range(0,999),
-    all("rental_plans"),sb.from("rental_records").select("*").eq("period",ym+"-01").range(0,4999),
+    all("rental_plans"),sb.from("rental_summary").select("*").eq("period",ym+"-01").range(0,4999),
     all("registry_outlets","booth_code,municipality,needs_details,lat,collector,status,sr_name"),
     adm?sb.from("profiles").select("id",{count:"exact",head:true}).eq("status","pending"):Promise.resolve({count:0}),
     adm?sb.from("password_requests").select("id",{count:"exact",head:true}).eq("status","open"):Promise.resolve({count:0})]);
@@ -63,7 +63,7 @@ async function dash(v){
   const cad=`<div class="dc"><h4>Cash advances <a data-go="CASH ADVANCE (C.A) & PAYMENTS">Open →</a></h4><div class="g2" style="gap:6px 12px"><div><small class="chip">Advanced</small><br><b>${money(tA)}</b></div><div><small class="chip">Paid</small><br><b>${money(tP)}</b></div><div><small class="chip">Remaining</small><br><b>${money(tA-tP)}</b></div><div><small class="chip">Open</small><br><b>${oc.length}</b></div></div>
   ${oc.sort((a,b)=>(b.amount-b.paid)-(a.amount-a.paid)).slice(0,5).map(r=>`<div class="attn" style="cursor:default"><span style="flex:1">${esc(r.collector_name)}</span><span>${money(r.amount-r.paid)}</span></div>`).join("")}</div>`;
   // rentals
-  const rec=new Map((RR.data||[]).map(r=>[r.plan_id,r])),rk=k=>{const ps=PL.filter(p=>p.kind==k&&p.active),rs=ps.map(p=>rec.get(p.id)).filter(Boolean),due=rs.reduce((s,r)=>s+Number(r.amount),0),pd=rs.filter(r=>r.status=="paid").reduce((s,r)=>s+Number(r.amount),0);return{n:ps.length,due,pd,unpaid:rs.filter(r=>r.status!="paid").length,miss:ps.filter(p=>!rec.has(p.id)).length}};
+  const rec=new Map((RR.data||[]).map(r=>[r.plan_id,r])),rk=k=>{const ps=PL.filter(p=>p.kind==k&&p.active),rs=ps.map(p=>rec.get(p.id)).filter(Boolean),due=rs.reduce((s,r)=>s+Number(r.amount),0),pd=rs.reduce((s,r)=>s+Number(r.paid||0),0);return{n:ps.length,due,pd,unpaid:rs.filter(r=>Number(r.paid||0)<Number(r.amount)).length,miss:ps.filter(p=>!rec.has(p.id)).length}};
   const rn=rk("rental"),ld=rk("load"),mname=ML[today.getMonth()]+" "+today.getFullYear();
   const rent=`<div class="dc"><h4>Rentals &amp; load allowance — ${mname} <a data-go="OUTLET RENTALS & LOAD ALLOWANCE">Open →</a></h4>${[["Outlet rentals",rn],["Load allowance",ld]].map(([l,r])=>`<div style="margin:8px 0"><b>${l}</b> <span class="chip">${r.n} booths</span><div class="g2" style="gap:2px 12px;font-size:13px"><span>Due ${money(r.due)}</span><span>Paid ${money(r.pd)}</span><span>Unpaid ${money(r.due-r.pd)}</span><span>${r.miss} without record</span></div></div>`).join("")}</div>`;
   // registry

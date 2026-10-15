@@ -1,7 +1,7 @@
 (()=>{
 const NAME="BACK UP & RESTORE",KEY="n005_lastbackup";
-const TABLES=[["profiles","id,username,full_name,role,status,area,created_at"],["registry_outlets","*"],["registry_relievers","*"],["daily_reports","*"],["cash_advances","*"],["ca_payments","*"],["rental_plans","*"],["rental_records","*"],["attendance","*"],["thermal_days","*"],["thermal_lines","*"],["thermal_restocks","*"]];
-const LABEL={profiles:"Accounts (names, roles, status — never passwords)",registry_outlets:"Master Registry outlets",registry_relievers:"Relievers",daily_reports:"Daily sales reports",cash_advances:"Cash advances",ca_payments:"Cash advance payments",rental_plans:"Rental & load booth setups",rental_records:"Rental & load monthly records",attendance:"Attendance records",thermal_days:"Thermal paper days",thermal_lines:"Thermal paper lines",thermal_restocks:"Thermal paper restocks"};
+const TABLES=[["profiles","id,username,full_name,role,status,area,created_at"],["registry_outlets","*"],["registry_relievers","*"],["daily_reports","*"],["cash_advances","*"],["ca_payments","*"],["rental_plans","*"],["rental_records","*"],["rental_payments","*"],["attendance","*"],["thermal_days","*"],["thermal_lines","*"],["thermal_restocks","*"]];
+const LABEL={profiles:"Accounts (names, roles, status — never passwords)",registry_outlets:"Master Registry outlets",registry_relievers:"Relievers",daily_reports:"Daily sales reports",cash_advances:"Cash advances",ca_payments:"Cash advance payments",rental_plans:"Rental & load booth setups",rental_records:"Rental & load fee periods",rental_payments:"Rental & load payments",attendance:"Attendance records",thermal_days:"Thermal paper days",thermal_lines:"Thermal paper lines",thermal_restocks:"Thermal paper restocks"};
 const B={bk:null};window.BACKUP=B;setTimeout(()=>{B.make=makeBackup;B.run=runRestore},0);
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error)throw new Error(t+": "+error.message);if(!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o};
@@ -34,6 +34,12 @@ async function runRestore(bk,log){
   const newPlan=new Map((await all("rental_plans","id,booth_code,kind")).map(p=>[p.booth_code+"|"+p.kind,p.id]));
   log("Restoring monthly rental & load records…");const rr=[];rows("rental_records").forEach(r=>{const nid=newPlan.get(oldPlan.get(r.plan_id));if(nid)rr.push({...omit(r,"id","created_at","updated_at"),plan_id:nid});else put("rental_records","skipped",1)});
   await up("rental_records",rr,"plan_id,period");put("rental_records","done",rr.length);
+  // payments: map each old fee period to the new one; old backups that only marked a period "paid" get one full payment
+  log("Restoring rental & load payments…");const oldRec=new Map(rows("rental_records").map(r=>[r.id,newPlan.get(oldPlan.get(r.plan_id))+"|"+r.period])),newRec=new Map((await all("rental_records","id,plan_id,period")).map(r=>[r.plan_id+"|"+r.period,r.id])),rp=[];
+  rows("rental_payments").forEach(p=>{const id=newRec.get(oldRec.get(p.record_id));if(id)rp.push({record_id:id,paid_on:p.paid_on,amount:p.amount,created_by:me.id});else put("rental_payments","skipped",1)});
+  const hasPay=new Set(rows("rental_payments").map(p=>p.record_id));
+  rows("rental_records").forEach(r=>{if(r.status=="paid"&&!hasPay.has(r.id)&&Number(r.amount)>0){const id=newRec.get(oldRec.get(r.id));if(id)rp.push({record_id:id,paid_on:r.paid_on||r.cover_start||r.period,amount:r.amount,created_by:me.id})}});
+  for(const c of chunk(rp,200)){const{error}=await sb.from("rental_payments").upsert(c,{onConflict:"record_id,paid_on"});if(error)put("rental_payments","skipped",c.length);else put("rental_payments","done",c.length)}
   // 5. cash advances: oldest first, each with its payments, so the one-open-advance rule is respected
   log("Restoring cash advances & payments…");const curCA=await all("cash_advances","id,collector_id,taken_on,amount"),caKey=new Map(curCA.map(c=>[c.collector_id+"|"+c.taken_on+"|"+Number(c.amount),c.id])),pays=rows("ca_payments");
   for(const c of rows("cash_advances").slice().sort((a,b)=>a.taken_on.localeCompare(b.taken_on))){

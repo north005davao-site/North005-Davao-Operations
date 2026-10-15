@@ -8,20 +8,26 @@ const cov=(a,b)=>a&&b?fd(a)+" → "+fd(b):"";
 // n months after the ORIGINAL start day (anchored, so a 31st goes Feb 28 then back to Mar 31)
 const addA=(s,n)=>{const[y,m,d]=s.split("-").map(Number),t=new Date(y,m-1+n,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return iso(new Date(t.getFullYear(),t.getMonth(),Math.min(d,last)))};
 const KIND={rental:"Outlet Rental",load:"Load Allowance"};
-const R={kind:"rental",tab:"rec",m:iso(new Date()).slice(0,7),q:"",f:"",sub:false,busy:false};window.RENTS=R;window.RENT_MATH={addA};
+const ERR={OVERPAY:"That payment is more than the remaining balance.",BELOW_PAID:"The fee can't be lower than what has already been paid."};
+const emsg=e=>{const m=(e&&e.message)||"";for(const k in ERR)if(m.includes(k))return ERR[k];return "Something went wrong. Please try again."};
+const short=n=>Number(n).toLocaleString("en-US",{maximumFractionDigits:2});
+const rstat=(r,today)=>{const a=Number(r.amount),p=Number(r.paid||0);return a>0&&p>=a?["Paid","#22c55e"]:p>0?(r.due_date&&r.due_date<today?["Overdue (partial)","#ef4444"]:["Partial","#06b6d4"]):(r.due_date&&r.due_date<today?["Overdue","#ef4444"]:["Unpaid","#f59e0b"])};
+const R={kind:"rental",tab:"rec",m:iso(new Date()).slice(0,7),q:"",f:"",sub:false,busy:false,view:"list",id:null,cm:null};window.RENTS=R;window.RENT_MATH={addA};
 const MU=()=>window.MUNI||{};
 async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const lab=m=>{const[y,mm]=m.split("-").map(Number);return MN[mm-1]+" "+y};
 function dlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();d.close_=()=>{d.close();d.remove()};return d}
 function subscribe(){if(R.sub)return;R.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!R.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
-  sb.channel("rent").on("postgres_changes",{event:"*",schema:"public",table:"rental_plans"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_records"},f).subscribe()}
+  sb.channel("rent").on("postgres_changes",{event:"*",schema:"public",table:"rental_plans"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_records"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_payments"},f).subscribe()}
 const pill=(t,c)=>`<span class="pill" style="background:${c}">${t}</span>`;
 const muni=m=>MU()[m]?pill(MU()[m][0],MU()[m][1]):esc(m||"");
 
 // periods of a plan from index n0 while the period has started (cover_start <= today)
 function periods(p,n0,today){const out=[];if(!p.start_date)return out;for(let n=n0;n<n0+600;n++){const s=addA(p.start_date,n);if(s>today)break;out.push({n,s,e:addA(p.start_date,n+1)})}return out}
-const mkRow=(p,x,paid)=>({plan_id:p.id,period:x.s.slice(0,7)+"-01",cover_start:x.s,due_date:x.e,amount:p.monthly_amount,paid_to:p.paid_to||null,status:paid?"paid":"unpaid",paid_on:paid?x.s:null});
-async function insertRows(rows){for(let i=0;i<rows.length;i+=400){const{error}=await sb.from("rental_records").upsert(rows.slice(i,i+400),{onConflict:"plan_id,period",ignoreDuplicates:true});if(error)throw error}}
+const mkRow=(p,x,paid)=>({plan_id:p.id,period:x.s.slice(0,7)+"-01",cover_start:x.s,due_date:x.e,amount:p.monthly_amount,paid_to:p.paid_to||null,_paid:!!paid});
+async function insertRows(rows){const flag=new Map(),clean=rows.map(r=>{const{_paid,...o}=r;if(_paid)flag.set(o.plan_id+"|"+o.period,o);return o}),pays=[];
+  for(let i=0;i<clean.length;i+=400){const{data,error}=await sb.from("rental_records").upsert(clean.slice(i,i+400),{onConflict:"plan_id,period",ignoreDuplicates:true}).select("id,plan_id,period,amount");if(error)throw error;(data||[]).forEach(d=>{const f=flag.get(d.plan_id+"|"+d.period);if(f&&Number(d.amount)>0)pays.push({record_id:d.id,paid_on:f.cover_start,amount:d.amount})})}
+  for(let i=0;i<pays.length;i+=400){const{error}=await sb.from("rental_payments").upsert(pays.slice(i,i+400),{onConflict:"record_id,paid_on"});if(error)throw error}}
 
 // continue every plan's chain up to the current period (never recreates deleted older periods)
 async function ensure(plans){
@@ -31,9 +37,9 @@ async function ensure(plans){
   if(rows.length)await insertRows(rows)}
 
 async function rent(v){
-  subscribe();const adm=me.role=="admin";LOAD(v);
+  subscribe();if(R.view=="detail"&&R.id)return detail(v);const adm=me.role=="admin";LOAD(v);
   const P0=await all("rental_plans");if(adm)try{await ensure(P0)}catch(e){}
-  const[O,P,Rc]=await Promise.all([all("registry_outlets","booth_code,municipality,sr_name,collector,status"),Promise.resolve(P0),sb.from("rental_records").select("*").eq("period",R.m+"-01").range(0,4999)]);
+  const[O,P,Rc]=await Promise.all([all("registry_outlets","booth_code,municipality,sr_name,collector,status"),Promise.resolve(P0),sb.from("rental_summary").select("*").eq("period",R.m+"-01").range(0,4999)]);
   const reg=new Map(O.map(o=>[o.booth_code,o])),plans=P.filter(p=>p.kind==R.kind),recBy=new Map((Rc.data||[]).map(r=>[r.plan_id,r]));
   const info=p=>{const o=reg.get(p.booth_code)||{};return{teller:o.sr_name||"",muni:o.municipality||""}};
   v.innerHTML=`<div class="tbar"><button class="chip2" data-k="rental">Outlet Rentals</button><button class="chip2" data-k="load">Load Allowance</button><span style="width:10px"></span><button class="chip2" data-t="rec">Monthly records</button><button class="chip2" data-t="set">Booth setup</button></div>
@@ -50,10 +56,10 @@ async function rent(v){
       $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Cover starts</th><th>Default monthly amount</th><th>Paid to</th><th>Status</th></tr></thead><tbody>${pg.slice.map(({c,p})=>{const o=reg.get(c)||{};return`<tr data-c="${esc(c)}"${adm?' style="cursor:pointer"':""}><td><b>${esc(c)}</b></td><td>${esc(o.sr_name||"")}</td><td>${muni(o.municipality)}</td><td>${p&&p.start_date?fd(p.start_date):'<span style="color:var(--mu)">—</span>'}</td><td>${p?(p.monthly_amount!=null?money(p.monthly_amount):'<span style="color:var(--mu)">varies</span>'):""}</td><td>${esc(p?.paid_to||"")}</td><td>${p?(p.active?pill("Active","#22c55e"):pill("Inactive","#94a3b8")):pill("Not set up","#f59e0b")}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:'<div class="empty"><b>Booth setup</b><br>No booths match. Upload the masterlist in Master Registry first.</div>';
       if(adm)$("#rb").querySelectorAll("tr[data-c]").forEach(t=>t.onclick=()=>planDlg(pb.get(t.dataset.c)||null,t.dataset.c,O,plans,()=>rent(v),R.kind));PAGER.bind($("#rb"),pg.st,draw);return}
     const all2=plans.filter(p=>p.active||recBy.has(p.id)).map(p=>({p,r:recBy.get(p.id)})),rows=all2.filter(x=>!q||[x.p.booth_code,info(x.p).teller,x.r?.paid_to||x.p.paid_to||""].join(" ").toLowerCase().includes(q)),pg=PAGER.paginate(key,rows);
-    const due=all2.reduce((s,x)=>s+(x.r?Number(x.r.amount):0),0),paid=all2.reduce((s,x)=>s+(x.r&&x.r.status=="paid"?Number(x.r.amount):0),0),nog=all2.filter(x=>!x.r).length,today=iso(new Date()),od=all2.filter(x=>x.r&&x.r.status!="paid"&&x.r.due_date&&x.r.due_date<today).length;
+    const due=all2.reduce((s,x)=>s+(x.r?Number(x.r.amount):0),0),paid=all2.reduce((s,x)=>s+(x.r?Number(x.r.paid||0):0),0),nog=all2.filter(x=>!x.r).length,today=iso(new Date()),od=all2.filter(x=>x.r&&Number(x.r.paid||0)<Number(x.r.amount)&&x.r.due_date&&x.r.due_date<today).length;
     $("#rk").innerHTML=`<div class="kpis" style="margin-bottom:12px"><div class="kpi"><small>Total for ${lab(R.m)}</small><b>${money(due)}</b></div><div class="kpi"><small>Paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Unpaid</small><b>${money(due-paid)}</b>${od?`<small style="color:#ef4444">${od} overdue</small>`:""}</div><div class="kpi"><small>Booths</small><b>${all2.length}</b>${nog?`<small>${nog} without a record</small>`:""}</div></div>`;
-    $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Paid to</th><th>Amount</th><th>Status</th><th>Cover period</th></tr></thead><tbody>${pg.slice.map(({p,r})=>{const i=info(p);return`<tr data-p="${p.id}"${adm?' style="cursor:pointer"':""}><td><b>${esc(p.booth_code)}</b></td><td>${esc(i.teller)}</td><td>${muni(i.muni)}</td><td>${esc((r&&r.paid_to)||p.paid_to||"")}</td><td>${r?money(r.amount):'<span style="color:var(--mu)">—</span>'}</td><td>${r?(r.status=="paid"?pill("Paid","#22c55e"):(r.due_date&&r.due_date<today?pill("Overdue","#ef4444"):pill("Unpaid","#f59e0b"))):pill("No record","#94a3b8")}</td><td>${r?cov(r.cover_start,r.due_date):""}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:`<div class="empty"><b>${KIND[R.kind].toUpperCase()}</b><br>No booths set up yet.${adm?" Open “Booth setup” to start.":""}</div>`;
-    if(adm)$("#rb").querySelectorAll("tr[data-p]").forEach(t=>t.onclick=()=>{const p=plans.find(x=>x.id==t.dataset.p);recDlg(p,recBy.get(p.id),R.m,reg.get(p.booth_code),()=>rent(v))});PAGER.bind($("#rb"),pg.st,draw)};
+    $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Paid to</th><th>Fee</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Cover period</th></tr></thead><tbody>${pg.slice.map(({p,r})=>{const i=info(p);return`<tr data-p="${p.id}"${r||adm?' style="cursor:pointer"':""}><td><b>${esc(p.booth_code)}</b></td><td>${esc(i.teller)}</td><td>${muni(i.muni)}</td><td>${esc((r&&r.paid_to)||p.paid_to||"")}</td><td>${r?money(r.amount):'<span style="color:var(--mu)">—</span>'}</td><td>${r?money(r.paid||0):""}</td><td>${r?"<b>"+money(Number(r.amount)-Number(r.paid||0))+"</b>":""}</td><td>${r?(()=>{const t=rstat(r,today);return pill(t[0],t[1])})():pill("No record","#94a3b8")}</td><td>${r?cov(r.cover_start,r.due_date):""}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:`<div class="empty"><b>${KIND[R.kind].toUpperCase()}</b><br>No booths set up yet.${adm?" Open “Booth setup” to start.":""}</div>`;
+    $("#rb").querySelectorAll("tr[data-p]").forEach(t=>t.onclick=()=>{const p=plans.find(x=>x.id==t.dataset.p),r=recBy.get(p.id);if(r){R.view="detail";R.id=r.id;R.cm=null;go(cur)}else if(adm)recDlg(p,null,R.m,reg.get(p.booth_code),()=>rent(v))});PAGER.bind($("#rb"),pg.st,draw)};
   draw()}
 
 async function createPlan(body,markPaid){const{data,error}=await sb.from("rental_plans").insert(body).select().single();if(error)throw error;
@@ -94,24 +100,61 @@ function bulkDlg(O,plans,done,kind){
 
 function recDlg(p,r,m,o,done){
   const t0=iso(new Date());let st0=r?(r.cover_start||r.paid_on||m+"-01"):null;
-  if(!st0){if(p.start_date){for(let n=0;n<900;n++){const s=addA(p.start_date,n);if(s.slice(0,7)==m){st0=s;break}if(s.slice(0,7)>m)break}}st0=st0||(m==t0.slice(0,7)?t0:m+"-01")}
+  if(!st0){if(p.start_date){for(let n=0;n<900;n++){const s2=addA(p.start_date,n);if(s2.slice(0,7)==m){st0=s2;break}if(s2.slice(0,7)>m)break}}st0=st0||(m==t0.slice(0,7)?t0:m+"-01")}
   const anchored=p.start_date&&(()=>{for(let n=0;n<900;n++){if(addA(p.start_date,n)==st0)return n}return -1})(),due0=r&&r.due_date?r.due_date:(anchored>=0&&p.start_date?addA(p.start_date,anchored+1):addA(st0,1));let manual=!!(r&&r.due_date&&r.due_date!=addA(st0,1)&&!(anchored>=0&&r.due_date==addA(p.start_date,anchored+1)));
-  const d=dlg(`<h4 style="margin:0 0 4px">${esc(p.booth_code)} — ${KIND[p.kind]}</h4><div class="chip">${esc(lab(m))}${o&&o.sr_name?" · "+esc(o.sr_name):""}</div>
-  <div class="g2"><div><label>Amount (₱)</label><input type="number" id="ra" min="0" step="0.01" inputmode="decimal" value="${r?r.amount:(p.monthly_amount??"")}"></div><div><label>Status</label><select id="rs"><option value="unpaid"${!r||r.status=="unpaid"?" selected":""}>Unpaid</option><option value="paid"${r&&r.status=="paid"?" selected":""}>Paid</option></select></div></div>
-  <div class="g2"><div><label>Payment / cover start date</label><input type="date" id="rd" value="${st0}"></div><div><label>Due date (set automatically)</label><input type="date" id="rdd" value="${due0}"></div></div>
+  const d=dlg(`<h4 style="margin:0 0 4px">${r?"Edit":"New"} record — ${esc(p.booth_code)} · ${KIND[p.kind]}</h4><div class="chip">${esc(lab(m))}${o&&o.sr_name?" · "+esc(o.sr_name):""}</div>
+  <label>Fee for this cover period (₱)</label><input type="number" id="ra" min="0" step="0.01" inputmode="decimal" value="${r?r.amount:(p.monthly_amount??"")}">
+  <div class="g2"><div><label>Cover period starts</label><input type="date" id="rd" value="${st0}"></div><div><label>Due date (set automatically)</label><input type="date" id="rdd" value="${due0}"></div></div>
   <div class="chip" id="rcv" style="margin-top:6px"></div>
   <div class="g2"><div><label>Paid to</label><input id="rp" value="${esc((r&&r.paid_to)||p.paid_to||"")}"></div><div><label>Note — optional</label><input id="rn" value="${esc(r?r.note||"":"")}"></div></div>
-  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">Pick the payment date and the due date becomes one month later (you can still change it). To change the amount for future months, edit the booth in Booth setup.</p>
-  <div class="msg" id="rm2"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="rsv">Save</button><button class="ghost" id="rx">Cancel</button>${r?'<button class="ghost" id="rdl" style="margin-left:auto">Delete record</button>':""}</div>`);
+  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">Payments are recorded on the calendar after you save (open the record and click a day). The fee can be changed for just this period; to change future periods, edit the booth in Booth setup.</p>
+  <div class="msg" id="rm2"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="rsv">Save</button><button class="ghost" id="rx">Cancel</button></div>`);
   const sd=d.querySelector("#rd"),dd=d.querySelector("#rdd"),cv=d.querySelector("#rcv"),show=()=>cv.textContent=sd.value&&dd.value?"Cover period: "+fd(sd.value)+" → "+fd(dd.value):"";show();
   sd.oninput=()=>{if(sd.value&&!manual)dd.value=addA(sd.value,1);show()};dd.oninput=()=>{manual=true;show()};
   d.querySelector("#rx").onclick=d.close_;
-  d.querySelector("#rsv").onclick=async()=>{const msg=d.querySelector("#rm2"),a=parseFloat(d.querySelector("#ra").value),s=sd.value,due=dd.value,paid=d.querySelector("#rs").value=="paid";
-    if(!(a>=0))return msg.textContent="Enter the amount.";if(!s)return msg.textContent="Choose the payment date.";if(!due||due<s)return msg.textContent="The due date must be on or after the payment date.";
-    const body={amount:a,status:paid?"paid":"unpaid",paid_on:paid?s:null,cover_start:s,due_date:due,period:s.slice(0,7)+"-01",paid_to:d.querySelector("#rp").value.trim()||null,note:d.querySelector("#rn").value.trim()||null};let error;
-    if(r)({error}=await sb.from("rental_records").update(body).eq("id",r.id));else({error}=await sb.from("rental_records").insert({...body,plan_id:p.id}));
-    if(error)return msg.textContent=/duplicate/i.test(error.message)?"This booth already has a record for "+lab(s.slice(0,7))+".":"Could not save.";R.m=s.slice(0,7);d.close_();done()};
-  if(r)d.querySelector("#rdl").onclick=async()=>{if(!confirm("Delete this record?"))return;const{error}=await sb.from("rental_records").delete().eq("id",r.id);if(error)return d.querySelector("#rm2").textContent="Could not delete.";d.close_();done()}}
+  d.querySelector("#rsv").onclick=async()=>{const msg=d.querySelector("#rm2"),a=parseFloat(d.querySelector("#ra").value),s2=sd.value,due=dd.value;
+    if(!(a>=0))return msg.textContent="Enter the fee.";if(!s2)return msg.textContent="Choose the date the cover period starts.";if(!due||due<s2)return msg.textContent="The due date must be on or after the start date.";
+    const body={amount:a,cover_start:s2,due_date:due,period:s2.slice(0,7)+"-01",paid_to:d.querySelector("#rp").value.trim()||null,note:d.querySelector("#rn").value.trim()||null};let error;
+    if(r)({error}=await sb.from("rental_records").update(body).eq("id",r.id));else({error}=await sb.from("rental_records").insert({...body,plan_id:p.id,status:"unpaid"}));
+    if(error)return msg.textContent=/duplicate/i.test(error.message)?"This booth already has a record for "+lab(s2.slice(0,7))+".":emsg(error);R.m=s2.slice(0,7);d.close_();done()}}
+
+// ---- one fee period: payments on a calendar, like a Cash Advance ----
+async function detail(v){
+  const adm=me.role=="admin";LOAD(v);
+  const A=await sb.from("rental_summary").select("*").eq("id",R.id).maybeSingle();if(!A.data){R.view="list";R.id=null;return rent(v)}
+  const r=A.data,[P,PL,O]=await Promise.all([sb.from("rental_payments").select("*").eq("record_id",r.id).order("paid_on"),sb.from("rental_plans").select("*").eq("id",r.plan_id).maybeSingle(),sb.from("registry_outlets").select("booth_code,municipality,sr_name,collector").range(0,2999)]);
+  const pays=P.data||[],p=PL.data||{booth_code:"",kind:"rental"},o=(O.data||[]).find(x=>x.booth_code==p.booth_code)||{},amt=Number(r.amount),paid=Number(r.paid||0),rem=amt-paid,today=iso(new Date()),t=rstat(r,today);
+  if(!R.cm){const cs=r.cover_start||r.period;R.cm=(rem>0&&today>=cs&&today<=(r.due_date||"9999")?today:(pays.length?pays[pays.length-1].paid_on:cs)).slice(0,7)}
+  v.innerHTML=`<div class="tbar"><button class="ghost" id="bk5">← Back to list</button><b style="font-size:16px">${esc(p.booth_code)}</b>${pill(t[0],t[1])}<span class="chip">${KIND[p.kind]}</span>${o.sr_name?`<span class="chip">${esc(o.sr_name)}</span>`:""}<span class="chip">Cover ${cov(r.cover_start,r.due_date)}</span>${adm?'<button class="ghost" id="ed5" style="margin-left:auto">Edit fee / dates</button><button class="ghost" id="dl5">Delete</button>':""}</div>
+  ${r.paid_to||r.note?`<div class="chip" style="margin:-4px 0 10px">${r.paid_to?"Paid to: "+esc(r.paid_to)+" ":""}${r.note?"· Note: "+esc(r.note):""}</div>`:""}
+  <div class="kpis"><div class="kpi"><small>Fee for this period</small><b>${money(amt)}</b></div><div class="kpi"><small>Total paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(rem)}</b></div></div>
+  <div class="prog" style="margin:12px 0"><i style="width:${amt>0?Math.min(100,paid/amt*100):0}%"></i></div>
+  <div class="box" style="max-width:none"><div class="tbar" style="margin-bottom:8px"><button class="chip2" id="pm5">‹</button><b id="mt5" style="min-width:150px;text-align:center"></b><button class="chip2" id="nm5">›</button><span class="chip" id="ms5"></span>${adm?'<span class="chip">Click a day to record a payment</span>':""}</div><div id="cal5"></div></div>
+  <h4 class="h">Payments</h4><div id="pl5"></div>`;
+  $("#bk5").onclick=()=>{R.view="list";R.id=null;go(cur)};
+  if(adm){$("#ed5").onclick=()=>recDlg(p,r,(r.period||"").slice(0,7),o,()=>detail(v));$("#dl5").onclick=async()=>{if(!confirm("Delete this fee period and all its payments?"))return;const{error}=await sb.from("rental_records").delete().eq("id",r.id);if(error)return alert("Could not delete.");R.view="list";R.id=null;go(cur)}}
+  const map=new Map(pays.map(x=>[x.paid_on,x]));
+  const calDraw=()=>{let[y,m]=R.cm.split("-").map(Number);const first=new Date(y,m-1,1).getDay(),days=new Date(y,m,0).getDate();let cells="",tot=0;
+    for(let i=0;i<first;i++)cells+='<div class="cd x"></div>';
+    for(let d2=1;d2<=days;d2++){const ds=`${y}-${String(m).padStart(2,"0")}-${String(d2).padStart(2,"0")}`,pp=map.get(ds),inP=r.cover_start&&r.due_date&&ds>=r.cover_start&&ds<=r.due_date;if(pp)tot+=Number(pp.amount);
+      cells+=`<div class="cd${pp?" paid":""}${ds==today?" today":""}${adm?" ck":""}${inP?"":" off2"}" data-d="${ds}"><span>${d2}</span>${ds==r.cover_start?"<i>Start</i>":ds==r.due_date?"<i>Due</i>":""}${pp?`<b>${short(pp.amount)}</b>`:""}</div>`}
+    $("#mt5").textContent=MN[m-1]+" "+y;$("#ms5").textContent="Paid this month: "+money(tot);
+    $("#cal5").innerHTML='<div class="calg">'+["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(w=>`<div class="wd">${w}</div>`).join("")+cells+"</div>";
+    if(adm)$("#cal5").querySelectorAll(".cd.ck").forEach(c=>c.onclick=()=>payDlg(r,rem,map.get(c.dataset.d),c.dataset.d,()=>detail(v)))};
+  const step=k=>{let[y,m]=R.cm.split("-").map(Number);m+=k;if(m<1){m=12;y--}if(m>12){m=1;y++}R.cm=y+"-"+String(m).padStart(2,"0");calDraw()};
+  $("#pm5").onclick=()=>step(-1);$("#nm5").onclick=()=>step(1);calDraw();
+  const plDraw=()=>{const list=[...pays].reverse(),pg=PAGER.paginate("rpay",list);$("#pl5").innerHTML=list.length?`<div class="tw"><table><thead><tr><th>Date</th><th>Amount</th></tr></thead><tbody>${pg.slice.map(x=>`<tr><td>${fd(x.paid_on)}</td><td>${money(x.amount)}</td></tr>`).join("")}</tbody></table></div>`+pg.bar:'<div class="empty">No payments yet.</div>';PAGER.bind($("#pl5"),pg.st,plDraw)};plDraw()}
+
+function payDlg(r,rem,p,ds,done){
+  const max=rem+(p?Number(p.amount):0),d=dlg(`<h4 style="margin:0 0 4px">Payment — ${fd(ds)}</h4><div class="chip">You can enter up to ${money(max)}</div><label>Amount paid (₱)</label><input type="number" id="pa" min="0" step="0.01" inputmode="decimal" value="${p?p.amount:(rem>0?rem:"")}"><div class="msg" id="pmsg"></div>
+  <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="ps">Save</button><button class="ghost" id="px">Cancel</button>${p?'<button class="ghost" id="pd" style="margin-left:auto">Remove payment</button>':""}</div>`);
+  d.querySelector("#px").onclick=d.close_;const inp=d.querySelector("#pa");inp.focus();inp.select();
+  d.querySelector("#ps").onclick=async()=>{const m=d.querySelector("#pmsg"),a=parseFloat(inp.value);let error;
+    if(!(a>0)){if(!p)return m.textContent="Enter an amount, or cancel.";({error}=await sb.from("rental_payments").delete().eq("id",p.id))}
+    else if(a>max+0.0001)return m.textContent="That is more than the remaining balance ("+money(max)+").";
+    else if(p)({error}=await sb.from("rental_payments").update({amount:a}).eq("id",p.id));else({error}=await sb.from("rental_payments").insert({record_id:r.id,paid_on:ds,amount:a,created_by:me.id}));
+    if(error)return m.textContent=emsg(error);d.close_();done()};
+  if(p)d.querySelector("#pd").onclick=async()=>{const{error}=await sb.from("rental_payments").delete().eq("id",p.id);if(error)return d.querySelector("#pmsg").textContent=emsg(error);d.close_();done()}}
 
 window.RENT_MATH.periods=periods;window.MODS=Object.assign(window.MODS||{},{[NAME]:rent});
 })();
