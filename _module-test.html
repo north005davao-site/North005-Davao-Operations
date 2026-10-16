@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>NORTH-005 · module integration test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// ---- style taken from the real app ----
+fetch("index.html").then(r=>r.text()).then(h=>{const m=h.match(/<style>([\s\S]*?)<\/style>/);if(m)document.head.insertAdjacentHTML("beforeend","<style>"+m[1]+"</style>")}).catch(()=>{});
+</script>
+</head>
+<body>
+<div id="app"><aside></aside><main><header><h3 id="ttl">THERMAL PAPER DAILY SUMMARY</h3><span class="chip" id="who">integration test</span></header><div id="view"></div></main></div>
+
+<script>
+// ---- minimal stubs for the globals app.js normally provides ----
+const $=s=>document.querySelector(s);
+window.esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+window.LOAD=()=>{};
+window.QUIETW=()=>false;
+window.me={id:"00000000-0000-0000-0000-000000000001",role:"admin"};
+window.cur="THERMAL PAPER DAILY SUMMARY";
+window.go=()=>{const m=window.MODS&&window.MODS[window.cur];if(m)m(document.querySelector("#view"))};
+window.PAGER={paginate:(k,rows)=>({st:{page:1,size:1000},slice:rows,bar:""}),bind:()=>{},reset:()=>{}};
+window.MUNI={"PANABO":["Panabo City","#22c55e"],"TAGUM":["Tagum City","#a855f7"]};
+
+// ---- fake Supabase: reads return a small registry, writes succeed ----
+const REG=["DDN-350","DDN-351","DDN-424","DDN-425","DDN-426","DDN-428","DDN-353","DDN-398","DDN-601","DDN-715","DDN-764","DDN-769","DDN-770","DDN-771","DDN-775","DDN-776","DDN-822","DDN-908","DDN-930","DDN-1004","DDN-1424","DDN-1475","DDN-1523","DDN-1524","DDN-1703","DDN-1722","DDN-1739","DDN-1741","DDN-1751","DDN-1799","DDN-1823","DDN-1825"].map((c,i)=>({booth_code:c,municipality:i%2?"PANABO":"TAGUM",sr_name:"Teller "+c}));
+function chain(data){
+  const o={};
+  o.select=()=>o;o.order=()=>o;o.range=()=>Promise.resolve({data:data||[],error:null});
+  o.eq=()=>o;o.insert=()=>o;o.update=()=>o;o.delete=()=>o;o.maybeSingle=()=>Promise.resolve({data:null,error:null});
+  o.then=(res,rej)=>Promise.resolve({data:data||[],error:null}).then(res,rej);
+  return o;
+}
+window.sb={
+  from:t=>chain(t==="registry_outlets"?REG:[]),
+  channel:()=>({on(){return this},subscribe(){}}),
+  storage:{from:()=>({createSignedUrl:async()=>({data:{signedUrl:""},error:null}),upload:async()=>({data:null,error:null}),remove:async()=>({data:null,error:null})})},
+  rpc:async()=>({data:null,error:null}),
+  functions:{invoke:async()=>{window.__aiCalled=(window.__aiCalled||0)+1;return{data:{error:"NO_KEY"},error:null}}}
+};
+</script>
+<script src="thermal.js"></script>
+<script>
+// ---- drive the real module: open the module, drop a photo, let it read by itself ----
+function sampleSheet(){
+  const c=document.createElement("canvas");c.width=1000;c.height=1420;
+  const x=c.getContext("2d");
+  x.fillStyle="#fbfaf3";x.fillRect(0,0,1000,1420);
+  x.strokeStyle="#c9c4b0";for(let y=110;y<1420;y+=62){x.beginPath();x.moveTo(40,y);x.lineTo(960,y);x.stroke()}
+  const F=()=>`44px "Segoe Print","Comic Sans MS",cursive`;
+  x.fillStyle="#16213e";x.font='bold 40px "Segoe Print","Comic Sans MS",cursive';
+  x.fillText("THERMAL PAPER ALLOCATION",60,72);
+  x.font=F();x.fillText("October 15, 2026",640,72);
+  const L=[["DDN-350","5"],["351","5"],["424","5"],["769","10"],["426","3"],["428","1"],
+           ["430","8"],["1475","5"],["764","5"],["398","10"],["512","2"],["601","4"],
+           ["715","6"],["822","3"],["930","7"],["1004","5"]];
+  L.forEach((r,i)=>{const col=i<8?60:530,row=150+(i%8)*62;
+    x.fillStyle="#16213e";x.font=F();x.fillText(r[0]+" - "+r[1],col,row)});
+  x.fillStyle="#8a1c1c";x.font='italic 40px "Segoe Print","Comic Sans MS",cursive';
+  x.fillText("Total allocated: 84",60,690);
+  x.font=F();x.fillStyle="#16213e";
+  x.fillText("Stock on hand: 400",60,760);
+  x.fillText("Remaining: 316",60,822);
+  return c;
+}
+window.__open=()=>{window.go()};
+window.__dropUrl=url=>fetch(url).then(r=>r.blob()).then(b=>new Promise((res,rej)=>{
+  const file=new File([b],"real-sheet.jpg",{type:b.type||"image/jpeg"});
+  const z=document.querySelector("#tz");if(!z)return rej(new Error("drop zone not rendered"));
+  z.ondrop({preventDefault(){},dataTransfer:{files:[file]}});res("dropped "+file.size+" bytes")}));
+window.addEventListener("load",()=>{setTimeout(()=>{window.__open();const b=document.createElement("div");b.className="warn2";b.style.margin="0 0 12px";b.innerHTML='<b>Integration test:</b> the real Thermal module is open below. Drop / paste / choose a photo of a handwritten sheet on the drop zone — the editor should open by itself and fill the booth rows automatically. No AI or OCR button exists any more.';document.querySelector("#view").parentNode.insertBefore(b,document.querySelector("#view"))},350)});
+window.__dropSample=()=>new Promise((res,rej)=>{
+  sampleSheet().toBlob(async b=>{
+    const file=new File([b],"thermal-sheet.jpg",{type:"image/jpeg"});
+    const z=document.querySelector("#tz");if(!z)return rej(new Error("drop zone not rendered"));
+    // this is exactly what the app's own drop handler does
+    z.ondrop({preventDefault(){},dataTransfer:{files:[file]}});
+    res("dropped");
+  },"image/jpeg",.92);
+});
+window.__check=()=>({
+  view: document.querySelector("#view").innerHTML.slice(0,120),
+  hasEditor: !!document.querySelector("#es"),
+  hasAIbutton: !!document.querySelector("#ei"),
+  hasOCRbutton: !!document.querySelector("#eo"),
+  status: document.querySelector("#eop") ? document.querySelector("#eop").textContent : null,
+  rows: [...document.querySelectorAll("#elb tr")].map(tr=>[...tr.querySelectorAll("td")].slice(0,5).map(td=>td.textContent.trim()).join(" | ")),
+  sum: document.querySelector("#esum") ? document.querySelector("#esum").textContent : null,
+  aiCalls: window.__aiCalled||0
+});
+</script>
+</body></html>
