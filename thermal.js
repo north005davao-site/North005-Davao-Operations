@@ -363,7 +363,7 @@ async function editor(v){
   const Rr=E.R||await all("thermal_restocks"),restock=()=>Rr.filter(r=>r.restock_date==E.date).reduce((s,r)=>s+r.rolls,0);
   v.innerHTML=`<div class="tbar"><button class="ghost" id="ec">← Cancel</button><b style="font-size:16px">${E.existing?"Edit":"New"} thermal summary</b></div>
   <div class="dgrid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));margin-top:0">
-  ${E.image&&E.image.url?`<div class="dc"><h4>Sheet photo <span class="chip">compare while you type</span></h4><div style="max-height:70vh;overflow:auto;border-radius:10px;border:1px solid var(--line);text-align:left;background:#000"><img id="eimg" src="${E.image.url}" alt="Thermal report" style="max-width:none;width:100%;height:auto;display:block"></div><div class="chip" id="eop" style="margin-top:8px"></div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="ghost" id="er2">↻ Read with Tesseract (local)</button><button class="ghost" id="er3">✨ Read with Gemini AI</button><span class="chip" id="ekey">${getThermalApiKey() ? 'Gemini API key set' : 'No Gemini API key'}</span></div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="password" id="ekeyinp" placeholder="Google Gemini API key (AIza...)" style="width:220px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx)"><button class="ghost" id="esavekey">Save key</button><button class="ghost" id="eclearkey">Clear</button></div><div class="chip" style="margin-top:6px">Tesseract runs locally with no API key. Gemini AI gives better accuracy but requires an API key (stored in your browser only).</div><div class="chip" style="margin-top:6px">Amber rows are uncertain. Always compare with the photo, then fix anything that is wrong before saving.</div></div></div>`:""}
+  ${E.image&&E.image.url?`<div class="dc"><h4>Sheet photo <span class="chip">compare while you type</span></h4><div style="max-height:70vh;overflow:auto;border-radius:10px;border:1px solid var(--line);text-align:center;background:#111"><img id="eimg" src="${E.image.url}" alt="Thermal report" style="max-width:100%;width:auto;height:auto;display:inline-block"></div><div class="chip" id="eop" style="margin-top:8px"></div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="ghost" id="er3">✨ Read with Gemini AI</button><span class="chip" id="ekey">${getThermalApiKey() ? 'Gemini API key set' : 'No Gemini API key'}</span></div><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="password" id="ekeyinp" placeholder="Google Gemini API key (AIza...)" style="width:220px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--tx)"><button class="ghost" id="esavekey">Save key</button><button class="ghost" id="eclearkey">Clear</button></div><div class="chip" style="margin-top:6px">Gemini AI gives the best accuracy for handwritten sheets. Your API key is stored in your browser only.</div><div class="chip" style="margin-top:6px">Amber rows are uncertain. Always compare with the photo, then fix anything that is wrong before saving.</div></div></div>`:""}
   <div class="dc"><h4>Details</h4><div class="g2"><div><label>Date</label><input type="date" id="ed" value="${E.date}"></div><div><label>Opening stock (rolls)</label><input type="number" id="eop2" min="0" step="1" value="${E.opening}"></div><div><label>New rolls received today (restock)</label><input type="number" id="ers" min="0" step="1" value="${E.restock??""}" placeholder="0"></div><div><label>Total allocated written on sheet (optional)</label><input type="number" id="ew" min="0" step="1" value="${E.written}"></div><div><label>Note (optional)</label><input id="en" value="${esc(E.note)}"></div></div>
   <div class="chip" style="margin-top:6px">${E.prev&&E.prev.from?`Opening stock carried over from ${fd(E.prev.from)}'s remaining balance.`:"First day: type your stocks on hand as the opening stock."}</div>
   <label>Quick list — type or paste booth-rolls pairs (e.g. <i>764-5 1475-5 398-10</i> or one per line)</label><textarea id="eq" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font:inherit" placeholder="764-5, 1475-5, 398-10 …"></textarea><button class="ghost" id="ea" style="margin-top:6px">Add these to the list</button></div></div>
@@ -385,16 +385,11 @@ async function editor(v){
   $("#ea").onclick=()=>{const p=parseLines($("#eq").value);if(!p.length){$("#em").textContent="I couldn't find any booth-rolls pairs like 764-5 in that text.";return}$("#em").textContent="";p.forEach(x=>E.lines.push({booth:x.booth,rolls:x.rolls}));$("#eq").value="";rows()};
   const cancel=()=>{if(E.image&&E.image.url&&E.image.file)URL.revokeObjectURL(E.image.url);T.ed=null;go(cur)};$("#ec").onclick=cancel;$("#ec2").onclick=cancel;
   const say=(t,err)=>{const pr=$("#eop");if(!pr)return;pr.style.color=err?"#ff8b9b":"var(--gold)";pr.textContent=t};
-  async function autoRead(method='tesseract'){ // runs by itself right after a photo is dropped, pasted or chosen
+  async function autoRead(){ // runs by itself right after a photo is dropped, pasted or chosen (Gemini AI only)
     const pr=$("#eop");if(!E.image||!pr||pr.dataset.busy)return;pr.dataset.busy="1";
-    const rb1=$("#er2"), rb2=$("#er3");if(rb1)rb1.disabled=true;if(rb2)rb2.disabled=true;
+    const rb=$("#er3");if(rb)rb.disabled=true;
     try{
-      let r;
-      if(method === 'gemini') {
-        r = await extractViaGemini(E.image, say);
-      } else {
-        r = await readSheet(E.image, say);
-      }
+      const r = await extractViaGemini(E.image, say);
       const head=r.header||{};
       if(!E.existing&&head.date){E.date=head.date;$("#ed").value=head.date}
       // "400 rolls on hand" is the day's opening stock; the sheet's "118 + 282 = 400" line means
@@ -410,9 +405,9 @@ async function editor(v){
       const un=found.filter(l=>l.u).length,miss=found.filter(l=>l.rolls===""||l.rolls==null).length;
       say("Read "+found.length+" rows"+(un?" · "+un+" flagged to check":"")+(miss?" · "+miss+" still need a quantity":"")+". Compare every row with the photo before saving."+(head.written!=null?" Sheet total: "+head.written+".":""))
     }catch(e){say("Extraction failed: "+e.message+". The photo and everything you typed are safe. Use the quick list box or add rows by hand.",true)}
-    finally{const b1=$("#er2"), b2=$("#er3");if(b1)b1.disabled=false;if(b2)b2.disabled=false;pr.dataset.busy=""}
+    finally{const rb=$("#er3");if(rb)rb.disabled=false;pr.dataset.busy=""}
   }
-  if(E.image&&!E.read){E.read=true;const pr=$("#eop");if(pr){pr.style.color="var(--gold)";pr.textContent='Photo loaded. Click "Read with Gemini AI" to extract.';}}
+  if(E.image&&!E.read){E.read=true;const pr=$("#eop");if(pr){pr.style.color="var(--gold)";pr.textContent='Photo loaded. Click "✨ Read with Gemini AI" to extract.';}}
   if($("#er3"))$("#er3").onclick=()=>{
     const key = getThermalApiKey();
     if(!key){
@@ -420,7 +415,7 @@ async function editor(v){
       if(pr){ pr.style.color="#ff8b9b"; pr.textContent="Please add a Gemini API key first."; }
       return;
     }
-    autoRead('gemini');
+    autoRead();
   };
   if($("#esavekey"))$("#esavekey").onclick=()=>{
     const inp=$("#ekeyinp");
@@ -443,11 +438,12 @@ async function editor(v){
     if(E.opening===""||!(+E.opening>=0))return m.textContent="Enter the opening stock.";const b=$("#es");b.disabled=true;T.busy=true;
     try{let path=E.image&&E.image.path?E.image.path:null;
       if(E.image&&E.image.file){m.style.color="var(--gold)";m.textContent="Uploading photo…";const c=await toCanvas(E.image,2000),blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));path=`${E.date}/${Date.now()}.jpg`;const up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg"});if(up.error)throw up.error}
-      const r=await sb.rpc("save_thermal_day",{p_date:E.date,p_opening:+E.opening,p_written:E.written===""?null:+E.written,p_image:path,p_note:E.note.trim()||null,p_lines:clean});if(r.error)throw r.error;
+      const r=await sb.rpc("save_thermal_day",{p_date:E.date,p_opening:+E.opening,p_written:E.written===""?null:+E.written,p_image:path,p_note:E.note.trim()||null,p_lines:clean});
+      if(r.error){const ed=r.error;throw new Error(ed.message||(ed.code?"DB error "+ed.code:"RPC error")+( ed.details?" — "+ed.details:"")+(ed.hint?" (hint: "+ed.hint+")":"")); }
       const rs0=n0(E.restock),sheetRow=Rr.find(r=>r.restock_date==E.date&&r.note===SHEET);
-      if(rs0>0){const q=sheetRow?sb.from("thermal_restocks").update({rolls:rs0}).eq("id",sheetRow.id):sb.from("thermal_restocks").insert({restock_date:E.date,rolls:rs0,note:SHEET,created_by:me.id});const rr=await q;if(rr.error)throw rr.error}
-      else if(sheetRow){const rr=await sb.from("thermal_restocks").delete().eq("id",sheetRow.id);if(rr.error)throw rr.error}
-      T.date=E.date;T.ed=null;T.busy=false;go(cur)}catch(e){T.busy=false;b.disabled=false;      m.style.color="#ff8b9b";m.textContent="Could not save: "+(e?.message||String(e))}}}
+      if(rs0>0){const q=sheetRow?sb.from("thermal_restocks").update({rolls:rs0}).eq("id",sheetRow.id):sb.from("thermal_restocks").insert({restock_date:E.date,rolls:rs0,note:SHEET,created_by:me.id});const rr=await q;if(rr.error)throw new Error("Restock save failed: "+(rr.error.message||rr.error.code))}
+      else if(sheetRow){const rr=await sb.from("thermal_restocks").delete().eq("id",sheetRow.id);if(rr.error)throw new Error("Restock delete failed: "+(rr.error.message||rr.error.code))}
+      T.date=E.date;T.ed=null;T.busy=false;go(cur)}catch(e){T.busy=false;b.disabled=false;m.style.color="#ff8b9b";m.textContent="Could not save: "+(e?.message||String(e))}}}
 
 window.MODS=Object.assign(window.MODS||{},{[NAME]:thermal});
 })();
