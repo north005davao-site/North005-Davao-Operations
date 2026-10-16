@@ -31,7 +31,7 @@ let LO=false;
 const quiet=async()=>{LO=true;try{await sb.auth.signOut()}finally{setTimeout(()=>{LO=false},900)}};
 const pop=el=>{if(!el)return;el.classList.remove("pop");void el.offsetWidth;el.classList.add("pop")};
 const setLabel=()=>{$("#go").textContent=LBL[mode]};
-function tab(m){const prev=mode;mode=m;
+function tab(m){const prev=mode;mode=m;$("#out-done")?.classList.add("hide");
   const vis=(id,on)=>{const e=$("#"+id),was=!e.classList.contains("hide");e.classList.toggle("hide",!on);if(on&&!was)pop(e)};
   vis("fN",m=="S");vis("fU",m!="C");vis("fP",m!="F");vis("fC",m=="S"||m=="C");vis("ph",m=="S"||m=="C");
   $("#fg").classList.toggle("hide",m!="L");$("#bk").classList.toggle("hide",m!="F"&&m!="C");
@@ -40,8 +40,10 @@ function tab(m){const prev=mode;mode=m;
   $("#pwl").textContent=m=="C"?"New password":"Password";if(prev!=m){$("#pw").value=$("#pw2").value=""}setMsg("")}
 $("#sw").onclick=()=>tab(mode=="S"?"L":"S");$("#fg").onclick=()=>tab("F");$("#bk").onclick=async()=>{if(mode=="C"){await quiet()}tab("L")};
 async function loadMe(){const{data:{user}}=await sb.auth.getUser();if(!user)return null;const{data}=await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();me=data;return data}
-function showDone(){$("#frm").classList.add("hide");pop($("#dn"));$("#dn").classList.remove("hide")}
-$("#dnb").onclick=()=>{$("#dn").classList.add("hide");$("#frm").classList.remove("hide");tab("L")};
+function showDone(){$("#frm").classList.add("hide");$("#out-done")?.classList.add("hide");pop($("#dn"));$("#dn").classList.remove("hide")}
+$("#dnb").onclick=()=>{$("#dn").classList.add("hide");$("#out-done")?.classList.add("hide");$("#frm").classList.remove("hide");tab("L")};
+function showPostLogout(){show("auth");$("#frm").classList.add("hide");$("#dn").classList.add("hide");const od=$("#out-done");if(od){od.classList.remove("hide");pop(od)}}
+const dno=$("#dno");if(dno){dno.onclick=()=>{const od=$("#out-done");if(od)od.classList.add("hide");$("#frm").classList.remove("hide");pop($("#frm"));tab("L");setTimeout(()=>$("#user")?.focus(),60)}}
 
 $("#go").onclick=async()=>{
   const u=uid($("#user").value),pw=$("#pw").value,b=$("#go");b.disabled=true;b.classList.add("busy");b.textContent={L:"Signing in…",S:"Creating your account…",F:"Sending…",C:"Saving…"}[mode];setMsg("");
@@ -134,15 +136,22 @@ function backup(v){v.innerHTML=`<div class="box"><p>All data lives in your Supab
     for(const p of j.profiles||[]){const r=await sb.from("profiles").update({full_name:p.full_name,role:p.role,status:p.status}).eq("username",p.username);if(!r.error)n++}
     $("#bm").textContent="Restored "+n+" account(s)."}catch(x){$("#bm").textContent="Invalid backup file."}}}
 
-async function out(){await quiet();clear();me=null;cur=null;try{localStorage.removeItem("n005_mod")}catch(e){}if(ch){sb.removeChannel(ch);ch=null}tab("L");show("auth")}
-$("#out").onclick=out;$("#menu").onclick=()=>$("#side").classList.toggle("open");
-sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT"&&me&&!LO){me=null;cur=null;if(ch){sb.removeChannel(ch);ch=null}tab("L");show("auth");setMsg("Your session ended. Please log in again.")}});
+function confirmLogout(){const dlg=$("#dlg-logout");if(dlg){dlg.classList.remove("modal-closing");dlg.showModal()}}
+function closeLogoutConfirm(){const dlg=$("#dlg-logout");if(!dlg||!dlg.open)return;dlg.classList.add("modal-closing");setTimeout(()=>{try{dlg.close()}catch(e){}dlg.classList.remove("modal-closing")},200)}
+async function doLogout(){closeLogoutConfirm();await quiet();clear();me=null;cur=null;try{localStorage.removeItem("n005_mod")}catch(e){}if(ch){sb.removeChannel(ch);ch=null}showPostLogout()}
+async function out(){confirmLogout()}
+$("#out").onclick=confirmLogout;$("#menu").onclick=()=>$("#side").classList.toggle("open");
+$("#btn-cancel-logout")?.addEventListener("click",closeLogoutConfirm);
+$("#btn-confirm-logout")?.addEventListener("click",doLogout);
+$("#dlg-logout")?.addEventListener("click",e=>{if(e.target===$("#dlg-logout"))closeLogoutConfirm()});
+$("#dlg-logout")?.addEventListener("cancel",e=>{e.preventDefault();closeLogoutConfirm()});
+sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT"&&me&&!LO){me=null;cur=null;if(ch){sb.removeChannel(ch);ch=null}$("#out-done")?.classList.add("hide");$("#frm")?.classList.remove("hide");tab("L");show("auth");setMsg("Your session ended. Please log in again.")}});
 document.querySelectorAll(".eye").forEach(b=>b.onclick=()=>{const i=b.previousElementSibling,s=i.type=="password";i.type=s?"text":"password";b.classList.toggle("on",s);b.setAttribute("aria-label",s?"Hide password":"Show password")});
 (()=>{const P=$("#parts");for(let i=0;i<22;i++){const e=document.createElement("i"),s=3+Math.random()*7;e.style.cssText=`left:${Math.random()*100}%;width:${s}px;height:${s}px;animation-duration:${9+Math.random()*12}s;animation-delay:${-Math.random()*14}s;--dx:${Math.round(Math.random()*80-40)}px`;P.appendChild(e)}
   [...document.querySelector("#frm").children].forEach((e,i)=>e.style.setProperty("--n",i))})();
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{show("boot");
-  const toLogin=m=>{show("auth");if(m)setMsg(m)};
+  const toLogin=m=>{$("#out-done")?.classList.add("hide");$("#dn")?.classList.add("hide");$("#frm")?.classList.remove("hide");show("auth");if(m)setMsg(m)};
   try{
     const{data:{session}}=await sb.auth.getSession();if(!session)return toLogin("");
     let p=null,err=null;
