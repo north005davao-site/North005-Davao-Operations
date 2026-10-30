@@ -14,10 +14,11 @@ window.PHOTO={
 const G=[["CORE OPERATIONS",["DASHBOARD","MASTER REGISTRY","SALES & COLLECTION","ETS LIVE TRACKING"]],
 ["FINANCE & PROPERTY",["CASH ADVANCE (C.A) & PAYMENTS","OUTLET RENTALS & LOAD ALLOWANCE"]],
 ["WORKFORCE & TOOLS",["USER & ACCESS MANAGEMENT","ATTENDANCE / WORKFORCE MONITORING","ORGANIZATIONAL CHART","EMPLOYEE DOCUMENTS","THERMAL PAPER DAILY SUMMARY"]],
+["EXPANSION & PLANNING",["PROPOSED LOCATIONS"]],
 ["SYSTEM ADMINISTRATION",["BACK UP & RESTORE"]],["PROFILE",["MY ACCOUNT"]]];
 const ROLES={admin:"Operations Administrator",supervisor:"Field Sales Supervisor",collector:"Field Sales Collector",rep:"Sales Representative",reliever:"Reliever"};
-const CORE=G[0][1],FIN=G[1][1],CA="CASH ADVANCE (C.A) & PAYMENTS",ATT="ATTENDANCE / WORKFORCE MONITORING",ACC="MY ACCOUNT";
-const ALLOW={admin:null,supervisor:[...CORE,...FIN,ACC],collector:[CA,ACC],rep:[ATT,ACC],reliever:[ATT,ACC]};
+const CORE=G[0][1],FIN=G[1][1],CA="CASH ADVANCE (C.A) & PAYMENTS",ATT="ATTENDANCE / WORKFORCE MONITORING",ACC="MY ACCOUNT",PROP="PROPOSED LOCATIONS";
+const ALLOW={admin:null,supervisor:[...CORE,...FIN,PROP,ACC],collector:[CA,ACC],rep:[ATT,ACC],reliever:[ATT,ACC]};
 let me=null,cur=null,mode="L",ch=null;
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const show=id=>["boot","auth","intro","app"].forEach(x=>$("#"+x).classList.toggle("hide",x!=id));
