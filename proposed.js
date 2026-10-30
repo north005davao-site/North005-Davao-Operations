@@ -183,7 +183,7 @@ ${filtered.length>0?pg.bar:""}`;
   // Wire tabs
   v.querySelectorAll("[data-plt]").forEach(b=>b.onclick=()=>{PL.tab=b.dataset.plt;PAGER.reset("pl_"+PL.tab);render(v)});
   // Wire pager
-  PAGER.bind(v.querySelector("#pl-table"),pg.st,()=>render(v));
+  PAGER.bind(v,pg.st,()=>render(v));
 
   // Wire filters
   const q=document.getElementById("pl-q");
