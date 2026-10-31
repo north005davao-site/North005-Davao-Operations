@@ -1,160 +1,1478 @@
+// OUTLET RENTALS & LOAD ALLOWANCE MODULE — North-005 Davao Operations ERP
+// Redesigned with Active Booth Code Monthly Payment Management, Calendar, A.R. Receipts, and Inventory
 (()=>{
-const NAME="OUTLET RENTALS & LOAD ALLOWANCE";
-const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
-const money=n=>"₱"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const fd=s=>{if(!s)return"";const[y,m,d]=s.split("-").map(Number);return MN[m-1].slice(0,3)+" "+d+", "+y};
-const cov=(a,b)=>a&&b?fd(a)+" → "+fd(b):"";
-// n months after the ORIGINAL start day (anchored, so a 31st goes Feb 28 then back to Mar 31)
-const addA=(s,n)=>{const[y,m,d]=s.split("-").map(Number),t=new Date(y,m-1+n,1),last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();return iso(new Date(t.getFullYear(),t.getMonth(),Math.min(d,last)))};
-const KIND={rental:"Outlet Rental",load:"Load Allowance"};
-const ERR={OVERPAY:"That payment is more than the remaining balance.",BELOW_PAID:"The fee can't be lower than what has already been paid."};
-const emsg=e=>{const m=(e&&e.message)||"";for(const k in ERR)if(m.includes(k))return ERR[k];return "Something went wrong. Please try again."};
-const short=n=>Number(n).toLocaleString("en-US",{maximumFractionDigits:2});
-const rstat=(r,today)=>{const a=Number(r.amount),p=Number(r.paid||0);return a>0&&p>=a?["Paid","#22c55e"]:p>0?(r.due_date&&r.due_date<today?["Overdue (partial)","#ef4444"]:["Partial","#06b6d4"]):(r.due_date&&r.due_date<today?["Overdue","#ef4444"]:["Unpaid","#f59e0b"])};
-const R={kind:"rental",tab:"rec",m:iso(new Date()).slice(0,7),q:"",f:"",sub:false,busy:false,view:"list",id:null,cm:null};window.RENTS=R;window.RENT_MATH={addA};
-const MU=()=>window.MUNI||{};
-async function all(t,cols){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select(cols||"*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
-const lab=m=>{const[y,mm]=m.split("-").map(Number);return MN[mm-1]+" "+y};
-function dlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();d.close_=()=>{d.close();d.remove()};return d}
-function subscribe(){if(R.sub)return;R.sub=true;let t;const f=()=>{clearTimeout(t);t=setTimeout(()=>{if(!QUIETW()&&cur==NAME&&!R.busy&&!document.querySelector("dialog[open]"))go(cur)},700)};
-  sb.channel("rent").on("postgres_changes",{event:"*",schema:"public",table:"rental_plans"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_records"},f).on("postgres_changes",{event:"*",schema:"public",table:"rental_payments"},f).subscribe()}
-const pill=(t,c)=>`<span class="pill" style="background:${c}">${t}</span>`;
-const muni=m=>MU()[m]?pill(MU()[m][0],MU()[m][1]):esc(m||"");
+const NAME = "OUTLET RENTALS & LOAD ALLOWANCE";
+const BUCKET = "rental-receipts";
+const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MN_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-// periods of a plan from index n0 while the period has started (cover_start <= today)
-function periods(p,n0,today){const out=[];if(!p.start_date)return out;for(let n=n0;n<n0+600;n++){const s=addA(p.start_date,n);if(s>today)break;out.push({n,s,e:addA(p.start_date,n+1)})}return out}
-const mkRow=(p,x,paid)=>({plan_id:p.id,period:x.s.slice(0,7)+"-01",cover_start:x.s,due_date:x.e,amount:p.monthly_amount,paid_to:p.paid_to||null,_paid:!!paid});
-async function insertRows(rows){const flag=new Map(),clean=rows.map(r=>{const{_paid,...o}=r;if(_paid)flag.set(o.plan_id+"|"+o.period,o);return o}),pays=[];
-  for(let i=0;i<clean.length;i+=400){const{data,error}=await sb.from("rental_records").upsert(clean.slice(i,i+400),{onConflict:"plan_id,period",ignoreDuplicates:true}).select("id,plan_id,period,amount");if(error)throw error;(data||[]).forEach(d=>{const f=flag.get(d.plan_id+"|"+d.period);if(f&&Number(d.amount)>0)pays.push({record_id:d.id,paid_on:f.cover_start,amount:d.amount})})}
-  for(let i=0;i<pays.length;i+=400){const{error}=await sb.from("rental_payments").upsert(pays.slice(i,i+400),{onConflict:"record_id,paid_on"});if(error)throw error}}
+const money = n => "₱" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const fd = s => {
+  if (!s) return "—";
+  const [y, m, d] = s.split("-").map(Number);
+  return MN_SHORT[m - 1] + " " + d + ", " + y;
+};
+const esc = window.esc || (s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])));
 
-// continue every plan's chain up to the current period (never recreates deleted older periods)
-async function ensure(plans){
-  const today=iso(new Date()),live=plans.filter(p=>p.active&&p.start_date&&p.monthly_amount!=null);if(!live.length)return;
-  const last=(await sb.from("rental_records").select("plan_id,cover_start,period").order("period",{ascending:false}).range(0,9999)).data||[],lb=new Map();last.forEach(r=>{if(!lb.has(r.plan_id))lb.set(r.plan_id,r)});
-  const rows=[];live.forEach(p=>{const l=lb.get(p.id);if(!l)return;const ls=l.cover_start||l.period;let n=0;while(addA(p.start_date,n)<=ls&&n<900)n++;periods(p,n,today).forEach(x=>rows.push(mkRow(p,x,false)))});
-  if(rows.length)await insertRows(rows)}
+// Next due date calculation: 1 month after Date Paid with month-end day clamping
+function calcNextDueDate(datePaidStr) {
+  if (!datePaidStr) return "";
+  const [y, m, d] = datePaidStr.split("-").map(Number);
+  const targetMonthIndex = m; // in 0-indexed JS Date, m-1 is current, m is next month
+  const targetYear = y + Math.floor(targetMonthIndex / 12);
+  const targetMonth = targetMonthIndex % 12;
+  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const targetDay = Math.min(d, daysInTargetMonth);
+  return iso(new Date(targetYear, targetMonth, targetDay));
+}
 
-async function rent(v){
-  subscribe();if(R.view=="detail"&&R.id)return detail(v);const adm=me.role=="admin";LOAD(v);
-  const P0=await all("rental_plans");if(adm)try{await ensure(P0)}catch(e){}
-  const[O,P,Rc]=await Promise.all([all("registry_outlets","booth_code,municipality,sr_name,collector,status"),Promise.resolve(P0),sb.from("rental_summary").select("*").eq("period",R.m+"-01").range(0,4999)]);
-  const reg=new Map(O.map(o=>[o.booth_code,o])),plans=P.filter(p=>p.kind==R.kind),recBy=new Map((Rc.data||[]).map(r=>[r.plan_id,r]));
-  const info=p=>{const o=reg.get(p.booth_code)||{};return{teller:o.sr_name||"",muni:o.municipality||""}};
-  v.innerHTML=`<div class="tbar"><button class="chip2" data-k="rental">Outlet Rentals</button><button class="chip2" data-k="load">Load Allowance</button><span style="width:10px"></span><button class="chip2" data-t="rec">Monthly records</button><button class="chip2" data-t="set">Booth setup</button></div>
-  <div class="tbar">${R.tab=="rec"?`<button class="chip2" id="pm">‹</button><b id="mt" style="min-width:150px;text-align:center">${lab(R.m)}</b><button class="chip2" id="nm">›</button><button class="ghost" id="tm">This month</button>`:`<select id="sf"><option value="">All booths</option><option value="set"${R.f=="set"?" selected":""}>Set up</option><option value="not"${R.f=="not"?" selected":""}>Not set up</option></select>`}<input id="rq" placeholder="Search booth, teller, paid to…" value="${esc(R.q)}">${adm&&R.tab=="set"?'<button class="ghost" id="ab">+ Add Booth</button><button class="ghost" id="aa">Add all booths from Master Registry</button>':""}</div><div id="rk"></div><div id="rb"></div>`;
-  v.querySelectorAll("[data-k]").forEach(b=>{b.classList.toggle("on",b.dataset.k==R.kind);b.onclick=()=>{R.kind=b.dataset.k;rent(v)}});
-  v.querySelectorAll("[data-t]").forEach(b=>{b.classList.toggle("on",b.dataset.t==R.tab);b.onclick=()=>{R.tab=b.dataset.t;rent(v)}});
-  const key="rent_"+R.kind+R.tab;$("#rq").oninput=e=>{R.q=e.target.value;PAGER.reset(key);draw()};
-  if(R.tab=="rec"){const step=k=>{let[y,m]=R.m.split("-").map(Number);m+=k;if(m<1){m=12;y--}if(m>12){m=1;y++}R.m=y+"-"+String(m).padStart(2,"0");rent(v)};$("#pm").onclick=()=>step(-1);$("#nm").onclick=()=>step(1);$("#tm").onclick=()=>{R.m=iso(new Date()).slice(0,7);rent(v)}}
-  else{$("#sf").onchange=e=>{R.f=e.target.value;PAGER.reset(key);draw()};if(adm){$("#ab").onclick=()=>planDlg(null,null,O,plans,()=>rent(v),R.kind);$("#aa").onclick=()=>bulkDlg(O,plans,()=>rent(v),R.kind)}}
-  const draw=()=>{const q=R.q.toLowerCase();
-    if(R.tab=="set"){$("#rk").innerHTML=`<div class="chip" style="margin-bottom:10px">Every booth from Master Registry is listed. Set the date the cover period starts (e.g. Aug 4, 2026): it runs one month (to Sep 4), then Sep 4 → Oct 4, and so on automatically.</div>`;
-      const pb=new Map(plans.map(p=>[p.booth_code,p])),codes=[...new Set([...O.filter(o=>o.status=="ACTIVE"||pb.has(o.booth_code)).map(o=>o.booth_code),...plans.map(p=>p.booth_code)])].sort((a,b)=>(parseInt(a.replace(/\D/g,""))||0)-(parseInt(b.replace(/\D/g,""))||0));
-      const rows=codes.map(c=>({c,p:pb.get(c)})).filter(x=>(!R.f||(R.f=="set")==!!x.p)&&(!q||[x.c,reg.get(x.c)?.sr_name||"",x.p?.paid_to||""].join(" ").toLowerCase().includes(q))),pg=PAGER.paginate(key,rows);
-      $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Cover starts</th><th>Default monthly amount</th><th>Paid to</th><th>Status</th></tr></thead><tbody>${pg.slice.map(({c,p})=>{const o=reg.get(c)||{};return`<tr data-c="${esc(c)}"${adm?' style="cursor:pointer"':""}><td><b>${esc(c)}</b></td><td>${esc(o.sr_name||"")}</td><td>${muni(o.municipality)}</td><td>${p&&p.start_date?fd(p.start_date):'<span style="color:var(--mu)">—</span>'}</td><td>${p?(p.monthly_amount!=null?money(p.monthly_amount):'<span style="color:var(--mu)">varies</span>'):""}</td><td>${esc(p?.paid_to||"")}</td><td>${p?(p.active?pill("Active","#22c55e"):pill("Inactive","#94a3b8")):pill("Not set up","#f59e0b")}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:'<div class="empty"><b>Booth setup</b><br>No booths match. Upload the masterlist in Master Registry first.</div>';
-      if(adm)$("#rb").querySelectorAll("tr[data-c]").forEach(t=>t.onclick=()=>planDlg(pb.get(t.dataset.c)||null,t.dataset.c,O,plans,()=>rent(v),R.kind));PAGER.bind($("#rb"),pg.st,draw);return}
-    const all2=plans.filter(p=>p.active||recBy.has(p.id)).map(p=>({p,r:recBy.get(p.id)})),rows=all2.filter(x=>!q||[x.p.booth_code,info(x.p).teller,x.r?.paid_to||x.p.paid_to||""].join(" ").toLowerCase().includes(q)),pg=PAGER.paginate(key,rows);
-    const due=all2.reduce((s,x)=>s+(x.r?Number(x.r.amount):0),0),paid=all2.reduce((s,x)=>s+(x.r?Number(x.r.paid||0):0),0),nog=all2.filter(x=>!x.r).length,today=iso(new Date()),od=all2.filter(x=>x.r&&Number(x.r.paid||0)<Number(x.r.amount)&&x.r.due_date&&x.r.due_date<today).length;
-    $("#rk").innerHTML=`<div class="kpis" style="margin-bottom:12px"><div class="kpi"><small>Total for ${lab(R.m)}</small><b>${money(due)}</b></div><div class="kpi"><small>Paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Unpaid</small><b>${money(due-paid)}</b>${od?`<small style="color:#ef4444">${od} overdue</small>`:""}</div><div class="kpi"><small>Booths</small><b>${all2.length}</b>${nog?`<small>${nog} without a record</small>`:""}</div></div>`;
-    $("#rb").innerHTML=rows.length?`<div class="tw"><table><thead><tr><th>Booth</th><th>Teller</th><th>Municipality</th><th>Paid to</th><th>Fee</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Cover period</th></tr></thead><tbody>${pg.slice.map(({p,r})=>{const i=info(p);return`<tr data-p="${p.id}"${r||adm?' style="cursor:pointer"':""}><td><b>${esc(p.booth_code)}</b></td><td>${esc(i.teller)}</td><td>${muni(i.muni)}</td><td>${esc((r&&r.paid_to)||p.paid_to||"")}</td><td>${r?money(r.amount):'<span style="color:var(--mu)">—</span>'}</td><td>${r?money(r.paid||0):""}</td><td>${r?"<b>"+money(Number(r.amount)-Number(r.paid||0))+"</b>":""}</td><td>${r?(()=>{const t=rstat(r,today);return pill(t[0],t[1])})():pill("No record","#94a3b8")}</td><td>${r?cov(r.cover_start,r.due_date):""}</td></tr>`}).join("")}</tbody></table></div>`+pg.bar:`<div class="empty"><b>${KIND[R.kind].toUpperCase()}</b><br>No booths set up yet.${adm?" Open “Booth setup” to start.":""}</div>`;
-    $("#rb").querySelectorAll("tr[data-p]").forEach(t=>t.onclick=()=>{const p=plans.find(x=>x.id==t.dataset.p),r=recBy.get(p.id);if(r){R.view="detail";R.id=r.id;R.cm=null;go(cur)}else if(adm)recDlg(p,null,R.m,reg.get(p.booth_code),()=>rent(v))});PAGER.bind($("#rb"),pg.st,draw)};
-  draw()}
+// Module State
+const R = {
+  tab: "booths", // "booths" | "inventory"
+  view: "list",  // "list" | "detail"
+  boothCode: null, // selected booth for detail view
+  m: iso(new Date()).slice(0, 7), // selected dashboard month "YYYY-MM"
+  calYear: new Date().getFullYear(), // calendar year for booth detail
+  q: "", // search input
+  muni: "", // municipality filter
+  brgy: "", // barangay filter
+  statusFilter: "", // "paid" | "pending" | "overdue" | ""
+  kpiFilter: "", // "paid" | "pending" | "overdue" | "collected" | ""
+  sub: false,
+  busy: false
+};
+window.RENTS = R;
 
-async function createPlan(body,markPaid){const{data,error}=await sb.from("rental_plans").insert(body).select().single();if(error)throw error;
-  if(data.monthly_amount!=null&&data.start_date){const today=iso(new Date()),rows=periods(data,0,today).map(x=>mkRow(data,x,markPaid&&x.e<=today));if(rows.length)await insertRows(rows)}return data}
+const adm = () => me && me.role === "admin";
+const sup = () => me && (me.role === "admin" || me.role === "supervisor");
+const MU = () => window.MUNI || {};
 
-function planDlg(p,code,O,plans,done,kind){
-  const k=p?p.kind:kind,start0=p&&p.start_date?p.start_date:"";
-  const d=dlg(`<h4 style="margin:0 0 6px">${p?"Edit":"Set up"} booth — ${KIND[k]}</h4>${p||code?`<div class="chip">${esc(p?p.booth_code:code)}</div>`:`<label>Booth code</label><input id="pb" list="bl" placeholder="Type or pick a booth code"><datalist id="bl">${O.filter(o=>!plans.some(x=>x.booth_code==o.booth_code)).map(o=>`<option value="${esc(o.booth_code)}">${esc(o.sr_name||"")}</option>`).join("")}</datalist>`}
-  <label>Cover period starts on</label><input type="date" id="ps" value="${start0}"><div class="chip" id="ph2" style="margin-top:6px"></div>
-  <label>Default monthly amount (₱) — optional, leave blank if it varies</label><input type="number" id="pa" min="0" step="0.01" inputmode="decimal" value="${p&&p.monthly_amount!=null?p.monthly_amount:""}">
-  <label>Paid to (landowner / payee) — optional</label><input id="pt" value="${esc(p?p.paid_to||"":"")}"><label>Note — optional</label><input id="pn" value="${esc(p?p.note||"":"")}">
-  ${p?`<label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="pc" style="width:auto"${p.active?" checked":""}> Active</label>`:`<label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="pe" style="width:auto"> Mark periods before today as already paid</label>`}
-  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">Records for each month are created automatically. Changing the amount here only affects future months.</p>
-  <div class="msg" id="pm2"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="ps2">Save</button><button class="ghost" id="px">Cancel</button>${p?'<button class="ghost" id="pd" style="margin-left:auto">Delete</button>':""}</div>`);
-  const ps=d.querySelector("#ps"),hint=()=>{const s=ps.value;d.querySelector("#ph2").textContent=s?`First period: ${fd(s)} → ${fd(addA(s,1))}. Then ${fd(addA(s,1))} → ${fd(addA(s,2))}, ${fd(addA(s,2))} → ${fd(addA(s,3))} …`:"Pick the date the first period starts."};hint();ps.oninput=hint;
-  d.querySelector("#px").onclick=d.close_;
-  d.querySelector("#ps2").onclick=async()=>{const m=d.querySelector("#pm2"),a=d.querySelector("#pa").value.trim(),body={start_date:ps.value||null,monthly_amount:a===""?null:parseFloat(a),paid_to:d.querySelector("#pt").value.trim()||null,note:d.querySelector("#pn").value.trim()||null};
-    if(!body.start_date)return m.textContent="Pick the date the cover period starts.";if(body.monthly_amount!==null&&!(body.monthly_amount>=0))return m.textContent="Enter a valid amount.";d.querySelector("#ps2").disabled=true;R.busy=true;
-    try{if(p){body.active=d.querySelector("#pc").checked;const{error}=await sb.from("rental_plans").update(body).eq("id",p.id);if(error)throw error}
-      else{const c=code||d.querySelector("#pb").value.trim().toUpperCase();if(!O.some(o=>o.booth_code==c)){R.busy=false;d.querySelector("#ps2").disabled=false;return m.textContent="Choose a booth code from Master Registry."}await createPlan({...body,booth_code:c,kind:k},d.querySelector("#pe").checked)}
-      R.busy=false;d.close_();done()}catch(e){R.busy=false;d.querySelector("#ps2").disabled=false;m.textContent=/duplicate/i.test(e.message||"")?"That booth is already set up for "+KIND[k]+".":"Could not save."}};
-  if(p)d.querySelector("#pd").onclick=async()=>{if(!confirm("Delete this booth and ALL its monthly records?"))return;const{error}=await sb.from("rental_plans").delete().eq("id",p.id);if(error)return d.querySelector("#pm2").textContent="Could not delete.";d.close_();done()}}
+// -------------------------------------------------------------------------
+// Supabase Data Access & Fallbacks
+// -------------------------------------------------------------------------
+let ACTIVE_BOOTHS = [];
+let MONTH_PAYMENTS = [];
+let INVENTORY_DATA = [];
+let timer = null;
 
-function bulkDlg(O,plans,done,kind){
-  const have=new Set(plans.map(p=>p.booth_code)),todo=O.filter(o=>o.status=="ACTIVE"&&!have.has(o.booth_code));
-  const d=dlg(`<h4 style="margin:0 0 6px">Add all booths — ${KIND[kind]}</h4><p style="margin:0 0 6px"><b>${todo.length}</b> booth(s) from Master Registry are not set up yet.</p>
-  <label>Cover period starts on (same date for all)</label><input type="date" id="bs"><div class="chip" id="bh" style="margin-top:6px"></div><label>Default monthly amount (₱) — optional</label><input type="number" id="ba" min="0" step="0.01" inputmode="decimal"><label>Paid to — optional</label><input id="bt">
-  <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="be" style="width:auto"> Mark periods before today as already paid</label><p style="color:var(--mu);font-size:12px;margin:6px 0 0">You can change each booth's date or amount afterwards by clicking it in the list.</p>
-  <div class="msg" id="bm"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="bg">Add ${todo.length} booth(s)</button><button class="ghost" id="bx">Cancel</button></div>`);
-  const bs=d.querySelector("#bs");bs.oninput=()=>d.querySelector("#bh").textContent=bs.value?`First period: ${fd(bs.value)} → ${fd(addA(bs.value,1))}, then it repeats monthly.`:"";
-  d.querySelector("#bx").onclick=d.close_;
-  d.querySelector("#bg").onclick=async()=>{const m=d.querySelector("#bm"),a=d.querySelector("#ba").value.trim();if(!todo.length)return m.textContent="Every booth is already set up.";if(!bs.value)return m.textContent="Pick the date the cover period starts.";
-    const amt=a===""?null:parseFloat(a);if(amt!==null&&!(amt>=0))return m.textContent="Enter a valid amount.";d.querySelector("#bg").disabled=true;R.busy=true;m.style.color="var(--gold)";m.textContent="Adding booths…";
-    try{const body=todo.map(o=>({booth_code:o.booth_code,kind,start_date:bs.value,monthly_amount:amt,paid_to:d.querySelector("#bt").value.trim()||null})),made=[];
-      for(let i=0;i<body.length;i+=200){const{data,error}=await sb.from("rental_plans").insert(body.slice(i,i+200)).select();if(error)throw error;made.push(...data)}
-      if(amt!==null){const today=iso(new Date()),paid=d.querySelector("#be").checked,rows=[];made.forEach(p=>periods(p,0,today).forEach(x=>rows.push(mkRow(p,x,paid&&x.e<=today))));m.textContent="Creating monthly records…";await insertRows(rows)}
-      R.busy=false;d.close_();done()}catch(e){R.busy=false;d.querySelector("#bg").disabled=false;m.style.color="#ff8b9b";m.textContent="Could not add the booths. Nothing more was changed."}}}
+async function fetchActiveBooths() {
+  const { data, error } = await sb
+    .from("registry_outlets")
+    .select("booth_code,sr_name,municipality,barangay,purok,collector,status")
+    .eq("status", "ACTIVE")
+    .range(0, 4999);
+  if (error || !data) return [];
+  return data.sort((a, b) => {
+    const na = parseInt(String(a.booth_code).replace(/\D/g, "")) || 0;
+    const nb = parseInt(String(b.booth_code).replace(/\D/g, "")) || 0;
+    return na - nb || String(a.booth_code).localeCompare(String(b.booth_code));
+  });
+}
 
-function recDlg(p,r,m,o,done){
-  const t0=iso(new Date());let st0=r?(r.cover_start||r.paid_on||m+"-01"):null;
-  if(!st0){if(p.start_date){for(let n=0;n<900;n++){const s2=addA(p.start_date,n);if(s2.slice(0,7)==m){st0=s2;break}if(s2.slice(0,7)>m)break}}st0=st0||(m==t0.slice(0,7)?t0:m+"-01")}
-  const anchored=p.start_date&&(()=>{for(let n=0;n<900;n++){if(addA(p.start_date,n)==st0)return n}return -1})(),due0=r&&r.due_date?r.due_date:(anchored>=0&&p.start_date?addA(p.start_date,anchored+1):addA(st0,1));let manual=!!(r&&r.due_date&&r.due_date!=addA(st0,1)&&!(anchored>=0&&r.due_date==addA(p.start_date,anchored+1)));
-  const d=dlg(`<h4 style="margin:0 0 4px">${r?"Edit":"New"} record — ${esc(p.booth_code)} · ${KIND[p.kind]}</h4><div class="chip">${esc(lab(m))}${o&&o.sr_name?" · "+esc(o.sr_name):""}</div>
-  <label>Fee for this cover period (₱)</label><input type="number" id="ra" min="0" step="0.01" inputmode="decimal" value="${r?r.amount:(p.monthly_amount??"")}">
-  <div class="g2"><div><label>Cover period starts</label><input type="date" id="rd" value="${st0}"></div><div><label>Due date (set automatically)</label><input type="date" id="rdd" value="${due0}"></div></div>
-  <div class="chip" id="rcv" style="margin-top:6px"></div>
-  <div class="g2"><div><label>Paid to</label><input id="rp" value="${esc((r&&r.paid_to)||p.paid_to||"")}"></div><div><label>Note — optional</label><input id="rn" value="${esc(r?r.note||"":"")}"></div></div>
-  <p style="color:var(--mu);font-size:12px;margin:6px 0 0">Payments are recorded on the calendar after you save (open the record and click a day). The fee can be changed for just this period; to change future periods, edit the booth in Booth setup.</p>
-  <div class="msg" id="rm2"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="rsv">Save</button><button class="ghost" id="rx">Cancel</button></div>`);
-  const sd=d.querySelector("#rd"),dd=d.querySelector("#rdd"),cv=d.querySelector("#rcv"),show=()=>cv.textContent=sd.value&&dd.value?"Cover period: "+fd(sd.value)+" → "+fd(dd.value):"";show();
-  sd.oninput=()=>{if(sd.value&&!manual)dd.value=addA(sd.value,1);show()};dd.oninput=()=>{manual=true;show()};
-  d.querySelector("#rx").onclick=d.close_;
-  d.querySelector("#rsv").onclick=async()=>{const msg=d.querySelector("#rm2"),a=parseFloat(d.querySelector("#ra").value),s2=sd.value,due=dd.value;
-    if(!(a>=0))return msg.textContent="Enter the fee.";if(!s2)return msg.textContent="Choose the date the cover period starts.";if(!due||due<s2)return msg.textContent="The due date must be on or after the start date.";
-    const body={amount:a,cover_start:s2,due_date:due,period:s2.slice(0,7)+"-01",paid_to:d.querySelector("#rp").value.trim()||null,note:d.querySelector("#rn").value.trim()||null};let error;
-    if(r)({error}=await sb.from("rental_records").update(body).eq("id",r.id));else({error}=await sb.from("rental_records").insert({...body,plan_id:p.id,status:"unpaid"}));
-    if(error)return msg.textContent=/duplicate/i.test(error.message)?"This booth already has a record for "+lab(s2.slice(0,7))+".":emsg(error);R.m=s2.slice(0,7);d.close_();done()}}
+async function fetchPaymentsForPeriod(periodStr) {
+  try {
+    const { data, error } = await sb
+      .from("booth_payments")
+      .select("*, attachments:booth_payment_attachments(*)")
+      .eq("payment_period", periodStr)
+      .range(0, 4999);
+    if (error) return [];
+    return data || [];
+  } catch (e) {
+    return [];
+  }
+}
 
-// ---- one fee period: payments on a calendar, like a Cash Advance ----
-async function detail(v){
-  const adm=me.role=="admin";LOAD(v);
-  const A=await sb.from("rental_summary").select("*").eq("id",R.id).maybeSingle();if(!A.data){R.view="list";R.id=null;return rent(v)}
-  const r=A.data,[P,PL,O]=await Promise.all([sb.from("rental_payments").select("*").eq("record_id",r.id).order("paid_on"),sb.from("rental_plans").select("*").eq("id",r.plan_id).maybeSingle(),sb.from("registry_outlets").select("booth_code,municipality,sr_name,collector").range(0,2999)]);
-  const pays=P.data||[],p=PL.data||{booth_code:"",kind:"rental"},o=(O.data||[]).find(x=>x.booth_code==p.booth_code)||{},amt=Number(r.amount),paid=Number(r.paid||0),rem=amt-paid,today=iso(new Date()),t=rstat(r,today);
-  if(!R.cm){const cs=r.cover_start||r.period;R.cm=(rem>0&&today>=cs&&today<=(r.due_date||"9999")?today:(pays.length?pays[pays.length-1].paid_on:cs)).slice(0,7)}
-  v.innerHTML=`<div class="tbar"><button class="ghost" id="bk5">← Back to list</button><b style="font-size:16px">${esc(p.booth_code)}</b>${pill(t[0],t[1])}<span class="chip">${KIND[p.kind]}</span>${o.sr_name?`<span class="chip">${esc(o.sr_name)}</span>`:""}<span class="chip">Cover ${cov(r.cover_start,r.due_date)}</span>${adm?'<button class="ghost" id="ed5" style="margin-left:auto">Edit fee / dates</button><button class="ghost" id="dl5">Delete</button>':""}</div>
-  ${r.paid_to||r.note?`<div class="chip" style="margin:-4px 0 10px">${r.paid_to?"Paid to: "+esc(r.paid_to)+" ":""}${r.note?"· Note: "+esc(r.note):""}</div>`:""}
-  <div class="kpis"><div class="kpi"><small>Fee for this period</small><b>${money(amt)}</b></div><div class="kpi"><small>Total paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(rem)}</b></div></div>
-  <div class="prog" style="margin:12px 0"><i style="width:${amt>0?Math.min(100,paid/amt*100):0}%"></i></div>
-  <div class="box" style="max-width:none"><div class="tbar" style="margin-bottom:8px"><button class="chip2" id="pm5">‹</button><b id="mt5" style="min-width:150px;text-align:center"></b><button class="chip2" id="nm5">›</button><span class="chip" id="ms5"></span>${adm?'<span class="chip">Click a day to record a payment</span>':""}</div><div id="cal5"></div></div>
-  <h4 class="h">Payments</h4><div id="pl5"></div>`;
-  $("#bk5").onclick=()=>{R.view="list";R.id=null;go(cur)};
-  if(adm){$("#ed5").onclick=()=>recDlg(p,r,(r.period||"").slice(0,7),o,()=>detail(v));$("#dl5").onclick=async()=>{if(!confirm("Delete this fee period and all its payments?"))return;const{error}=await sb.from("rental_records").delete().eq("id",r.id);if(error)return alert("Could not delete.");R.view="list";R.id=null;go(cur)}}
-  const map=new Map(pays.map(x=>[x.paid_on,x]));
-  const calDraw=()=>{let[y,m]=R.cm.split("-").map(Number);const first=new Date(y,m-1,1).getDay(),days=new Date(y,m,0).getDate();let cells="",tot=0;
-    for(let i=0;i<first;i++)cells+='<div class="cd x"></div>';
-    for(let d2=1;d2<=days;d2++){const ds=`${y}-${String(m).padStart(2,"0")}-${String(d2).padStart(2,"0")}`,pp=map.get(ds),inP=r.cover_start&&r.due_date&&ds>=r.cover_start&&ds<=r.due_date;if(pp)tot+=Number(pp.amount);
-      cells+=`<div class="cd${pp?" paid":""}${ds==today?" today":""}${adm?" ck":""}${inP?"":" off2"}" data-d="${ds}"><span>${d2}</span>${ds==r.cover_start?"<i>Start</i>":ds==r.due_date?"<i>Due</i>":""}${pp?`<b>${short(pp.amount)}</b>`:""}</div>`}
-    $("#mt5").textContent=MN[m-1]+" "+y;$("#ms5").textContent="Paid this month: "+money(tot);
-    $("#cal5").innerHTML='<div class="calg">'+["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(w=>`<div class="wd">${w}</div>`).join("")+cells+"</div>";
-    if(adm)$("#cal5").querySelectorAll(".cd.ck").forEach(c=>c.onclick=()=>payDlg(r,rem,map.get(c.dataset.d),c.dataset.d,()=>detail(v)))};
-  const step=k=>{let[y,m]=R.cm.split("-").map(Number);m+=k;if(m<1){m=12;y--}if(m>12){m=1;y++}R.cm=y+"-"+String(m).padStart(2,"0");calDraw()};
-  $("#pm5").onclick=()=>step(-1);$("#nm5").onclick=()=>step(1);calDraw();
-  const plDraw=()=>{const list=[...pays].reverse(),pg=PAGER.paginate("rpay",list);$("#pl5").innerHTML=list.length?`<div class="tw"><table><thead><tr><th>Date</th><th>Amount</th></tr></thead><tbody>${pg.slice.map(x=>`<tr><td>${fd(x.paid_on)}</td><td>${money(x.amount)}</td></tr>`).join("")}</tbody></table></div>`+pg.bar:'<div class="empty">No payments yet.</div>';PAGER.bind($("#pl5"),pg.st,plDraw)};plDraw()}
+async function fetchAllBoothPayments(boothCode) {
+  try {
+    const { data, error } = await sb
+      .from("booth_payments")
+      .select("*, attachments:booth_payment_attachments(*)")
+      .eq("booth_code", boothCode)
+      .order("date_paid", { ascending: false })
+      .range(0, 4999);
+    if (error) return [];
+    return data || [];
+  } catch (e) {
+    return [];
+  }
+}
 
-function payDlg(r,rem,p,ds,done){
-  const max=rem+(p?Number(p.amount):0),d=dlg(`<h4 style="margin:0 0 4px">Payment — ${fd(ds)}</h4><div class="chip">You can enter up to ${money(max)}</div><label>Amount paid (₱)</label><input type="number" id="pa" min="0" step="0.01" inputmode="decimal" value="${p?p.amount:(rem>0?rem:"")}"><div class="msg" id="pmsg"></div>
-  <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="ps">Save</button><button class="ghost" id="px">Cancel</button>${p?'<button class="ghost" id="pd" style="margin-left:auto">Remove payment</button>':""}</div>`);
-  d.querySelector("#px").onclick=d.close_;const inp=d.querySelector("#pa");inp.focus();inp.select();
-  d.querySelector("#ps").onclick=async()=>{const m=d.querySelector("#pmsg"),a=parseFloat(inp.value);let error;
-    if(!(a>0)){if(!p)return m.textContent="Enter an amount, or cancel.";({error}=await sb.from("rental_payments").delete().eq("id",p.id))}
-    else if(a>max+0.0001)return m.textContent="That is more than the remaining balance ("+money(max)+").";
-    else if(p)({error}=await sb.from("rental_payments").update({amount:a}).eq("id",p.id));else({error}=await sb.from("rental_payments").insert({record_id:r.id,paid_on:ds,amount:a,created_by:me.id}));
-    if(error)return m.textContent=emsg(error);d.close_();done()};
-  if(p)d.querySelector("#pd").onclick=async()=>{const{error}=await sb.from("rental_payments").delete().eq("id",p.id);if(error)return d.querySelector("#pmsg").textContent=emsg(error);d.close_();done()}}
+async function fetchInventory() {
+  try {
+    const { data, error } = await sb
+      .from("equipment_inventory")
+      .select("*")
+      .range(0, 99);
+    if (error || !data) return [];
+    return data;
+  } catch (e) {
+    return [];
+  }
+}
 
-window.RENT_MATH.periods=periods;window.MODS=Object.assign(window.MODS||{},{[NAME]:rent});
+async function signedUrl(path) {
+  if (!path) return null;
+  try {
+    const { data } = await sb.storage.from(BUCKET).createSignedUrl(path, 3600);
+    return data?.signedUrl || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function subscribe() {
+  if (R.sub) return;
+  R.sub = true;
+  sb.channel("booth_rentals_chan")
+    .on("postgres_changes", { event: "*", schema: "public", table: "booth_payments" }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!QUIETW() && cur === NAME && !R.busy && !document.querySelector("dialog[open]")) go(cur);
+      }, 700);
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "booth_payment_attachments" }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!QUIETW() && cur === NAME && !R.busy && !document.querySelector("dialog[open]")) go(cur);
+      }, 700);
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "equipment_inventory" }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!QUIETW() && cur === NAME && !R.busy && !document.querySelector("dialog[open]")) go(cur);
+      }, 700);
+    })
+    .subscribe();
+}
+
+// -------------------------------------------------------------------------
+// Main Entry Point
+// -------------------------------------------------------------------------
+async function rent(v) {
+  subscribe();
+  LOAD(v);
+  v.dataset.mod = cur;
+
+  if (R.tab === "inventory") {
+    INVENTORY_DATA = await fetchInventory();
+    return renderInventory(v);
+  }
+
+  // Booth Payments tab
+  ACTIVE_BOOTHS = await fetchActiveBooths();
+  MONTH_PAYMENTS = await fetchPaymentsForPeriod(R.m);
+
+  if (R.view === "detail" && R.boothCode) {
+    return renderDetail(v);
+  }
+  return renderList(v);
+}
+
+// -------------------------------------------------------------------------
+// TAB 1: BOOTH PAYMENTS LIST VIEW
+// -------------------------------------------------------------------------
+function renderList(v) {
+  const today = iso(new Date());
+  const [curYear, curMonthNum] = R.m.split("-").map(Number);
+  const monthLabel = MN[curMonthNum - 1] + " " + curYear;
+
+  // Build Map of payments for selected month
+  const payMap = new Map();
+  MONTH_PAYMENTS.forEach(p => {
+    payMap.set(p.booth_code, p);
+  });
+
+  // Calculate Dashboard Counts
+  let countPaid = 0;
+  let countPending = 0;
+  let countOverdue = 0;
+  let totalCollected = 0;
+
+  const boothRows = ACTIVE_BOOTHS.map(b => {
+    const pay = payMap.get(b.booth_code);
+    let status = "pending";
+    if (pay) {
+      status = "paid";
+      countPaid++;
+      totalCollected += Number(pay.amount || 0);
+    } else {
+      // If payment not recorded for period:
+      // Overdue if period is in the past, or if today is past the 25th of that period
+      const periodEnd = new Date(curYear, curMonthNum, 0); // last day of month
+      const periodEndIso = iso(periodEnd);
+      if (today > periodEndIso) {
+        status = "overdue";
+        countOverdue++;
+      } else {
+        status = "pending";
+        countPending++;
+      }
+    }
+    return {
+      ...b,
+      payment: pay || null,
+      status
+    };
+  });
+
+  // Filter Rows
+  let filtered = boothRows;
+
+  // KPI card filter
+  if (R.kpiFilter === "paid" || R.kpiFilter === "collected") {
+    filtered = filtered.filter(r => r.status === "paid");
+  } else if (R.kpiFilter === "pending") {
+    filtered = filtered.filter(r => r.status === "pending");
+  } else if (R.kpiFilter === "overdue") {
+    filtered = filtered.filter(r => r.status === "overdue");
+  }
+
+  // Status dropdown filter
+  if (R.statusFilter) {
+    filtered = filtered.filter(r => r.status === R.statusFilter);
+  }
+
+  // Search filter
+  if (R.q) {
+    const q = R.q.toLowerCase();
+    filtered = filtered.filter(r =>
+      [r.booth_code, r.sr_name, r.municipality, r.barangay, r.purok, r.collector]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }
+
+  // Municipality filter
+  if (R.muni) {
+    filtered = filtered.filter(r => (r.municipality || "").toUpperCase() === R.muni.toUpperCase());
+  }
+
+  // Barangay filter
+  if (R.brgy) {
+    filtered = filtered.filter(r => (r.barangay || "").toUpperCase() === R.brgy.toUpperCase());
+  }
+
+  // Extract unique Municipalities & Barangays for dropdowns
+  const muniList = [...new Set(ACTIVE_BOOTHS.map(b => b.municipality).filter(Boolean))].sort();
+  const brgyList = [...new Set(
+    ACTIVE_BOOTHS
+      .filter(b => !R.muni || (b.municipality || "").toUpperCase() === R.muni.toUpperCase())
+      .map(b => b.barangay)
+      .filter(Boolean)
+  )].sort();
+
+  // Pagination
+  const pg = PAGER.paginate("rent_active_booths", filtered);
+
+  v.innerHTML = `
+<div class="hdr2">
+  <div>
+    <div style="font-size:18px;font-weight:700">🏢 Outlet Rentals &amp; Load Allowance</div>
+    <div class="chip">Active Booth Code Monthly Payment Management &amp; Equipment Inventory</div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="chip2 on" id="tab-booths">🏢 Booth Payments</button>
+    <button class="chip2" id="tab-inventory">📦 Equipment Inventory</button>
+  </div>
+</div>
+
+<!-- SECTION 10: PAYMENT OVERVIEW DASHBOARD -->
+<div class="box" style="margin-bottom:14px;background:linear-gradient(170deg,#10265a,#0a1a3f);border:1px solid var(--line)">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <b style="font-size:15px;color:var(--gold)">Payment Overview Dashboard</b>
+      <span class="chip">${esc(monthLabel)}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="chip2" id="db-prev-m">‹</button>
+      <input type="month" id="db-month-picker" value="${R.m}" style="padding:5px 8px;width:150px;font-size:13px;border-radius:8px">
+      <button class="chip2" id="db-next-m">›</button>
+      <button class="ghost" id="db-curr-m" style="padding:5px 10px;font-size:12px">Current Month</button>
+    </div>
+  </div>
+
+  <div class="kpis" style="margin:0">
+    <div class="kpi ${R.kpiFilter === 'paid' ? 'on' : ''}" id="kpi-paid" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'paid' ? '#22c55e' : 'transparent'};border-radius:10px;padding:10px">
+      <small style="color:#22c55e">✓ PAID BOOTHS</small>
+      <b style="color:#22c55e">${countPaid}</b>
+      <small style="color:var(--mu)">Click to filter</small>
+    </div>
+    <div class="kpi ${R.kpiFilter === 'pending' ? 'on' : ''}" id="kpi-pending" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'pending' ? '#e0b13a' : 'transparent'};border-radius:10px;padding:10px">
+      <small style="color:#e0b13a">⏳ PENDING BOOTHS</small>
+      <b style="color:#e0b13a">${countPending}</b>
+      <small style="color:var(--mu)">Click to filter</small>
+    </div>
+    <div class="kpi ${R.kpiFilter === 'overdue' ? 'on' : ''}" id="kpi-overdue" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'overdue' ? '#ef4444' : 'transparent'};border-radius:10px;padding:10px">
+      <small style="color:#ef4444">⚠️ OVERDUE BOOTHS</small>
+      <b style="color:#ef4444">${countOverdue}</b>
+      <small style="color:var(--mu)">Click to filter</small>
+    </div>
+    <div class="kpi ${R.kpiFilter === 'collected' ? 'on' : ''}" id="kpi-collected" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'collected' ? 'var(--gold)' : 'transparent'};border-radius:10px;padding:10px">
+      <small style="color:var(--gold)">💰 TOTAL COLLECTED</small>
+      <b style="color:var(--gold)">${money(totalCollected)}</b>
+      <small style="color:var(--mu)">Click to filter</small>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 1: SEARCH & FILTERS -->
+<div class="tbar" id="pl-filters">
+  <input id="rf-q" placeholder="Search active booth code, teller, municipality, barangay…" value="${esc(R.q)}" style="flex:2;min-width:180px">
+  <select id="rf-muni" style="min-width:140px">
+    <option value="">All Municipalities</option>
+    ${muniList.map(m => `<option value="${esc(m)}"${m === R.muni ? " selected" : ""}>${esc(m)}</option>`).join("")}
+  </select>
+  <select id="rf-brgy" style="min-width:140px">
+    <option value="">All Barangays</option>
+    ${brgyList.map(b => `<option value="${esc(b)}"${b === R.brgy ? " selected" : ""}>${esc(b)}</option>`).join("")}
+  </select>
+  <select id="rf-status" style="min-width:120px">
+    <option value="">All Statuses</option>
+    <option value="paid"${R.statusFilter === "paid" ? " selected" : ""}>Paid</option>
+    <option value="pending"${R.statusFilter === "pending" ? " selected" : ""}>Pending</option>
+    <option value="overdue"${R.statusFilter === "overdue" ? " selected" : ""}>Overdue</option>
+  </select>
+  <button class="ghost" id="rf-clear" style="padding:6px 12px;font-size:12px">Clear</button>
+  <span class="chip">${filtered.length} active booth${filtered.length === 1 ? "" : "s"}</span>
+</div>
+
+<!-- SECTION 1: DATA GRID -->
+<div class="tw" id="rf-table">
+  ${filtered.length === 0 ? `
+    <div class="empty">
+      <b>No Active Booths Found</b><br>
+      ${ACTIVE_BOOTHS.length === 0 ? "No active booth records in Master Registry. Please ensure outlets have status 'ACTIVE'." : "Try adjusting your search or filters."}
+    </div>` : `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Booth Code</th>
+          <th>Teller / SR Name</th>
+          <th>Municipality</th>
+          <th>Barangay</th>
+          <th>Status (${esc(monthLabel)})</th>
+          <th>Amount Paid</th>
+          <th>Date Paid</th>
+          <th>Next Due Date</th>
+          <th>Receipt</th>
+          <th style="width:140px;text-align:right">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      ${pg.slice.map((r, i) => {
+        const rowNum = (pg.st.page - 1) * pg.st.size + i + 1;
+        const p = r.payment;
+        const attachCount = p && p.attachments ? p.attachments.length : 0;
+        const stPill = r.status === "paid"
+          ? `<span class="pill" style="background:#22c55e">Paid</span>`
+          : r.status === "overdue"
+          ? `<span class="pill" style="background:#ef4444">Overdue</span>`
+          : `<span class="pill" style="background:#e0b13a">Pending</span>`;
+        return `
+          <tr data-booth="${esc(r.booth_code)}">
+            <td style="color:var(--mu);font-size:12px">${rowNum}</td>
+            <td>
+              <a href="#" class="booth-link" data-booth="${esc(r.booth_code)}" style="font-weight:700;color:var(--gold);text-decoration:underline">
+                ${esc(r.booth_code)}
+              </a>
+            </td>
+            <td>${esc(r.sr_name || "—")}</td>
+            <td>${MU()[r.municipality] ? `<span class="pill" style="background:${MU()[r.municipality][1]}">${MU()[r.municipality][0]}</span>` : esc(r.municipality || "—")}</td>
+            <td>${esc(r.barangay || "—")}</td>
+            <td>${stPill}</td>
+            <td style="font-weight:600">${p ? money(p.amount) : "—"}</td>
+            <td style="font-size:12px">${p ? fd(p.date_paid) : "—"}</td>
+            <td style="font-size:12px">${p ? fd(p.next_due_date) : "—"}</td>
+            <td>
+              ${attachCount > 0 ? `<button class="ghost" data-view-rec="${esc(p.id)}" style="padding:3px 8px;font-size:11px" title="View A.R. Receipt">📎 ${attachCount}</button>` : `<span style="color:var(--mu)">—</span>`}
+            </td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="ghost" data-booth="${esc(r.booth_code)}" style="padding:5px 10px;font-size:12px">
+                Manage Payments →
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("")}
+      </tbody>
+    </table>
+  `}
+</div>
+${filtered.length > 0 ? pg.bar : ""}
+`;
+
+  // Wire Top Tabs
+  const tb = v.querySelector("#tab-booths"), ti = v.querySelector("#tab-inventory");
+  if (tb) tb.onclick = () => { R.tab = "booths"; rent(v); };
+  if (ti) ti.onclick = () => { R.tab = "inventory"; rent(v); };
+
+  // Wire Dashboard Month Controls
+  const stepMonth = k => {
+    let [y, m] = R.m.split("-").map(Number);
+    m += k;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    R.m = y + "-" + String(m).padStart(2, "0");
+    PAGER.reset("rent_active_booths");
+    rent(v);
+  };
+  const prevM = v.querySelector("#db-prev-m"), nextM = v.querySelector("#db-next-m"), currM = v.querySelector("#db-curr-m"), mp = v.querySelector("#db-month-picker");
+  if (prevM) prevM.onclick = () => stepMonth(-1);
+  if (nextM) nextM.onclick = () => stepMonth(1);
+  if (currM) currM.onclick = () => { R.m = iso(new Date()).slice(0, 7); PAGER.reset("rent_active_booths"); rent(v); };
+  if (mp) mp.onchange = e => { if (e.target.value) { R.m = e.target.value; PAGER.reset("rent_active_booths"); rent(v); } };
+
+  // Wire KPI Clickable Cards
+  const toggleKpi = filterVal => {
+    R.kpiFilter = R.kpiFilter === filterVal ? "" : filterVal;
+    PAGER.reset("rent_active_booths");
+    renderList(v);
+  };
+  const kp = v.querySelector("#kpi-paid"), kpen = v.querySelector("#kpi-pending"), ko = v.querySelector("#kpi-overdue"), kc = v.querySelector("#kpi-collected");
+  if (kp) kp.onclick = () => toggleKpi("paid");
+  if (kpen) kpen.onclick = () => toggleKpi("pending");
+  if (ko) ko.onclick = () => toggleKpi("overdue");
+  if (kc) kc.onclick = () => toggleKpi("collected");
+
+  // Wire Filter Inputs
+  const qInp = v.querySelector("#rf-q");
+  if (qInp) {
+    qInp.oninput = e => {
+      R.q = e.target.value;
+      PAGER.reset("rent_active_booths");
+      renderList(v);
+      const n = v.querySelector("#rf-q");
+      if (n) { n.focus(); n.setSelectionRange(R.q.length, R.q.length); }
+    };
+  }
+  const muniSel = v.querySelector("#rf-muni");
+  if (muniSel) muniSel.onchange = e => { R.muni = e.target.value; R.brgy = ""; PAGER.reset("rent_active_booths"); renderList(v); };
+
+  const brgySel = v.querySelector("#rf-brgy");
+  if (brgySel) brgySel.onchange = e => { R.brgy = e.target.value; PAGER.reset("rent_active_booths"); renderList(v); };
+
+  const stSel = v.querySelector("#rf-status");
+  if (stSel) stSel.onchange = e => { R.statusFilter = e.target.value; R.kpiFilter = ""; PAGER.reset("rent_active_booths"); renderList(v); };
+
+  const clrBtn = v.querySelector("#rf-clear");
+  if (clrBtn) clrBtn.onclick = () => {
+    R.q = ""; R.muni = ""; R.brgy = ""; R.statusFilter = ""; R.kpiFilter = "";
+    PAGER.reset("rent_active_booths");
+    renderList(v);
+  };
+
+  // Wire Pager correctly to container v!
+  PAGER.bind(v, pg.st, () => renderList(v));
+
+  // Wire Booth Clicks -> Open Detail Page
+  v.querySelectorAll("[data-booth]").forEach(b => {
+    b.onclick = e => {
+      e.preventDefault();
+      const code = b.dataset.booth;
+      if (code) {
+        R.boothCode = code;
+        R.view = "detail";
+        renderDetail(v);
+      }
+    };
+  });
+
+  // Wire Receipt View in List
+  v.querySelectorAll("[data-view-rec]").forEach(b => {
+    b.onclick = e => {
+      e.stopPropagation();
+      const payId = b.dataset.viewRec;
+      const pay = MONTH_PAYMENTS.find(p => p.id === payId);
+      if (pay && pay.attachments && pay.attachments.length) {
+        viewAttachmentsDialog(pay.attachments);
+      }
+    };
+  });
+}
+
+// -------------------------------------------------------------------------
+// TAB 1: INDIVIDUAL BOOTH MONTHLY PAYMENT DETAIL VIEW
+// -------------------------------------------------------------------------
+async function renderDetail(v) {
+  const code = R.boothCode;
+  const boothInfo = ACTIVE_BOOTHS.find(b => b.booth_code === code) || { booth_code: code };
+  const allPayments = await fetchAllBoothPayments(code);
+  const today = iso(new Date());
+
+  // Filter payments by selected calendar year
+  const calYear = R.calYear;
+
+  // Build map of month (1-12) to payments in calYear
+  const monthPayMap = new Map();
+  allPayments.forEach(p => {
+    if (p.payment_period && p.payment_period.startsWith(String(calYear) + "-")) {
+      const mNum = parseInt(p.payment_period.split("-")[1], 10);
+      monthPayMap.set(mNum, p);
+    }
+  });
+
+  // 12 Months Cards HTML
+  const monthsHtml = MN.map((mName, idx) => {
+    const mNum = idx + 1;
+    const periodStr = `${calYear}-${String(mNum).padStart(2, "0")}`;
+    const p = monthPayMap.get(mNum);
+    const isCurrentMonth = today.slice(0, 7) === periodStr;
+    const isPastMonth = today.slice(0, 7) > periodStr;
+
+    let cardStatus = "norecord";
+    let statusLabel = "No Record";
+    let statusColor = "var(--mu)";
+    let bgTint = "rgba(255,255,255,0.02)";
+
+    if (p) {
+      cardStatus = "paid";
+      statusLabel = "Paid";
+      statusColor = "#22c55e";
+      bgTint = "rgba(34,197,94,0.08)";
+    } else if (isPastMonth) {
+      cardStatus = "overdue";
+      statusLabel = "Overdue";
+      statusColor = "#ef4444";
+      bgTint = "rgba(239,68,68,0.08)";
+    } else if (isCurrentMonth) {
+      cardStatus = "pending";
+      statusLabel = "Pending";
+      statusColor = "#e0b13a";
+      bgTint = "rgba(224,177,58,0.08)";
+    }
+
+    const attachCount = p && p.attachments ? p.attachments.length : 0;
+
+    return `
+      <div class="month-card" data-period="${periodStr}" data-mname="${mName}" style="
+        background:${bgTint};
+        border:1px solid ${p ? '#22c55e' : isPastMonth ? 'rgba(239,68,68,0.4)' : isCurrentMonth ? 'rgba(224,177,58,0.5)' : 'var(--line)'};
+        border-radius:12px;
+        padding:14px;
+        cursor:pointer;
+        transition:all 0.18s ease;
+        position:relative;
+      ">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <b style="font-size:14.5px;color:#fff">${mName}</b>
+          <span class="pill" style="background:${statusColor};font-size:11px">${statusLabel}</span>
+        </div>
+        <div style="font-size:13px;margin-bottom:4px">
+          ${p ? `<span style="font-size:15px;font-weight:700;color:var(--gold)">${money(p.amount)}</span>` : `<span style="color:var(--mu);font-size:12px">No payment recorded</span>`}
+        </div>
+        <div style="font-size:11.5px;color:var(--mu);min-height:16px">
+          ${p ? `Paid: ${fd(p.date_paid)}` : `Period: ${periodStr}`}
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;font-size:11px">
+          ${attachCount > 0 ? `<span style="color:#22c55e">📎 ${attachCount} Receipt${attachCount > 1 ? "s" : ""}</span>` : `<span style="color:var(--mu)">No attachment</span>`}
+          <span style="color:var(--gold);font-size:12px">Edit →</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  v.innerHTML = `
+<div class="tbar" style="margin-bottom:12px">
+  <button class="ghost" id="bd-back" style="padding:7px 14px;font-size:13px">← Back to Active Booths</button>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <b style="font-size:18px;color:var(--gold)">BOOTH CODE: ${esc(code)}</b>
+    ${boothInfo.sr_name ? `<span class="chip">Teller: ${esc(boothInfo.sr_name)}</span>` : ""}
+    ${boothInfo.municipality ? `<span class="chip">${esc(boothInfo.municipality)}</span>` : ""}
+    ${boothInfo.barangay ? `<span class="chip">${esc(boothInfo.barangay)}</span>` : ""}
+    <span class="pill" style="background:#22c55e">ACTIVE</span>
+  </div>
+</div>
+
+<!-- SECTION 2: MONTHLY PAYMENT CALENDAR -->
+<div class="box" style="margin-bottom:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <div>
+      <div style="font-size:16px;font-weight:700">📅 Monthly Payment Calendar</div>
+      <div class="chip" style="margin-top:3px">January – December layout. Select any month to create, view, or manage its payment record.</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="chip2" id="yr-prev">‹</button>
+      <b style="font-size:16px;min-width:60px;text-align:center">${calYear}</b>
+      <button class="chip2" id="yr-next">›</button>
+      <button class="ghost" id="yr-curr" style="padding:4px 10px;font-size:12px">Current Year</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+    ${monthsHtml}
+  </div>
+</div>
+
+<!-- SECTION 5: MONTHLY PAYMENT HISTORY -->
+<div class="box" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <b style="font-size:16px">📜 Payment History — ${esc(code)}</b>
+    <span class="chip">${allPayments.length} recorded payment${allPayments.length === 1 ? "" : "s"}</span>
+  </div>
+
+  ${allPayments.length === 0 ? `
+    <div class="empty">No payment records saved for this booth yet. Click any month in the calendar above to record a payment.</div>
+  ` : `
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Payment Period</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Date Paid</th>
+            <th>Next Due Date</th>
+            <th>Receipt / Attachment</th>
+            <th>Status</th>
+            <th>Remarks</th>
+            <th style="width:100px;text-align:right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allPayments.map(p => {
+            const attachCount = p.attachments ? p.attachments.length : 0;
+            const isDueSoon = p.next_due_date && today <= p.next_due_date && (new Date(p.next_due_date) - new Date(today)) / 864e5 <= 7;
+            const isPastDue = p.next_due_date && today > p.next_due_date;
+            const dueBadge = isPastDue
+              ? `<small style="color:#ef4444;display:block">Overdue</small>`
+              : isDueSoon
+              ? `<small style="color:#06b6d4;display:block">Due Soon</small>`
+              : "";
+            return `
+              <tr>
+                <td><b>${esc(p.payment_period)}</b></td>
+                <td>${esc(p.payment_description || "Rent Fee")}</td>
+                <td style="font-weight:700;color:var(--gold)">${money(p.amount)}</td>
+                <td style="font-size:12px">${fd(p.date_paid)}</td>
+                <td style="font-size:12px">
+                  ${fd(p.next_due_date)}
+                  ${dueBadge}
+                </td>
+                <td>
+                  ${attachCount > 0 ? `
+                    <button class="ghost" data-view-rec="${esc(p.id)}" style="padding:3px 8px;font-size:11px">
+                      📎 View (${attachCount})
+                    </button>
+                  ` : `<span style="color:var(--mu)">No receipt</span>`}
+                </td>
+                <td><span class="pill" style="background:#22c55e">Paid</span></td>
+                <td style="font-size:12px;color:var(--mu)">${esc(p.remarks || "—")}</td>
+                <td style="text-align:right;white-space:nowrap">
+                  <button class="ghost" data-edit-pay="${esc(p.id)}" style="padding:4px 9px;font-size:12px">Edit</button>
+                </td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `}
+</div>
+`;
+
+  // Wire Back Button
+  const bkB = v.querySelector("#bd-back");
+  if (bkB) bkB.onclick = () => { R.view = "list"; R.boothCode = null; renderList(v); };
+
+  // Wire Calendar Year Navigation
+  const yp = v.querySelector("#yr-prev"), yn = v.querySelector("#yr-next"), yc = v.querySelector("#yr-curr");
+  if (yp) yp.onclick = () => { R.calYear--; renderDetail(v); };
+  if (yn) yn.onclick = () => { R.calYear++; renderDetail(v); };
+  if (yc) yc.onclick = () => { R.calYear = new Date().getFullYear(); renderDetail(v); };
+
+  // Wire Month Card Clicks -> Open Payment Entry Form
+  v.querySelectorAll(".month-card").forEach(mc => {
+    mc.onclick = () => {
+      const period = mc.dataset.period;
+      const mName = mc.dataset.mname;
+      const existingPay = allPayments.find(p => p.payment_period === period);
+      openPaymentDialog(code, period, mName, existingPay, v);
+    };
+  });
+
+  // Wire Edit Payment in History
+  v.querySelectorAll("[data-edit-pay]").forEach(b => {
+    b.onclick = () => {
+      const payId = b.dataset.editPay;
+      const existingPay = allPayments.find(p => p.id === payId);
+      if (existingPay) {
+        const [y, m] = existingPay.payment_period.split("-").map(Number);
+        const mName = MN[m - 1];
+        openPaymentDialog(code, existingPay.payment_period, mName, existingPay, v);
+      }
+    };
+  });
+
+  // Wire View Receipt in History
+  v.querySelectorAll("[data-view-rec]").forEach(b => {
+    b.onclick = () => {
+      const payId = b.dataset.viewRec;
+      const pay = allPayments.find(p => p.id === payId);
+      if (pay && pay.attachments && pay.attachments.length) {
+        viewAttachmentsDialog(pay.attachments);
+      }
+    };
+  });
+}
+
+// -------------------------------------------------------------------------
+// SECTION 2, 3, 4: PAYMENT ENTRY / EDIT MODAL & CONFIRMATION FLOWS
+// -------------------------------------------------------------------------
+function openPaymentDialog(boothCode, periodStr, monthName, existingPay, v) {
+  const isNew = !existingPay;
+  const today = iso(new Date());
+  const initialDatePaid = existingPay ? existingPay.date_paid : today;
+  const initialDueDate = existingPay ? existingPay.next_due_date : calcNextDueDate(initialDatePaid);
+  const initialDesc = existingPay ? existingPay.payment_description : "Rent Fee";
+  const isStandardDesc = initialDesc === "Rent Fee" || initialDesc === "POS LOAD 1 MONTH";
+
+  let stagedFiles = [];
+  let existingAttachments = existingPay && existingPay.attachments ? [...existingPay.attachments] : [];
+  let manualDueDate = existingPay ? !!existingPay.due_date_override : false;
+  let formDirty = false;
+
+  const d = document.createElement("dialog");
+  d.style.cssText = "max-width:540px;width:95vw;border-radius:16px;border:1px solid var(--line);background:var(--panel);color:var(--tx);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.7)";
+
+  d.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+  <div>
+    <h3 style="margin:0;font-size:17px;color:#fff">${isNew ? "Record Payment" : "Edit Payment Record"}</h3>
+    <div class="chip" style="margin-top:3px">Booth <b>${esc(boothCode)}</b> · Period <b>${esc(monthName)} ${esc(periodStr.slice(0, 4))}</b></div>
+  </div>
+  <button class="ghost" id="dlg-x" style="padding:4px 9px;font-size:12px">✕</button>
+</div>
+
+<div class="g2" style="gap:10px 14px">
+  <div style="grid-column:span 2">
+    <label>Payment Description</label>
+    <select id="pf-desc" style="width:100%">
+      <option value="Rent Fee"${initialDesc === "Rent Fee" ? " selected" : ""}>Rent Fee</option>
+      <option value="POS LOAD 1 MONTH"${initialDesc === "POS LOAD 1 MONTH" ? " selected" : ""}>POS LOAD 1 MONTH</option>
+      <option value="Other"${!isStandardDesc ? " selected" : ""}>Other (custom description)</option>
+    </select>
+    <input id="pf-desc-custom" placeholder="Enter custom description…" value="${!isStandardDesc ? esc(initialDesc) : ""}" style="margin-top:6px;display:${!isStandardDesc ? "block" : "none"}">
+  </div>
+
+  <div>
+    <label>Amount (₱)</label>
+    <input type="number" id="pf-amount" step="0.01" min="0" inputmode="decimal" placeholder="0.00" value="${existingPay ? existingPay.amount : ""}">
+  </div>
+
+  <div>
+    <label>Date Paid</label>
+    <input type="date" id="pf-date-paid" value="${initialDatePaid}">
+  </div>
+
+  <div>
+    <label>Payment Period</label>
+    <input type="text" id="pf-period" value="${esc(periodStr)}" readonly style="opacity:0.8;background:rgba(0,0,0,0.2)">
+  </div>
+
+  <div>
+    <label>Next Due Date <small style="color:var(--mu)">(Auto-calculated +1 mo)</small></label>
+    <input type="date" id="pf-due-date" value="${initialDueDate}">
+  </div>
+
+  <div style="grid-column:span 2">
+    <label>Remarks / Notes <small style="color:var(--mu)">(optional)</small></label>
+    <input type="text" id="pf-remarks" placeholder="Add remarks…" value="${esc(existingPay ? existingPay.remarks || "" : "")}">
+  </div>
+</div>
+
+<!-- SECTION 4: ACKNOWLEDGEMENT RECEIPT (A.R.) UPLOAD -->
+<div style="margin-top:14px">
+  <label style="display:flex;justify-content:space-between;align-items:center">
+    <span>Acknowledgement Receipt (A.R.)</span>
+    <small style="color:var(--mu)">JPG, PNG, PDF up to 20MB</small>
+  </label>
+  <div id="pf-dropzone" style="
+    border:2px dashed var(--line);
+    border-radius:12px;
+    padding:16px;
+    text-align:center;
+    background:rgba(0,0,0,0.18);
+    cursor:pointer;
+    transition:border-color 0.2s;
+  ">
+    <div style="font-size:22px;margin-bottom:4px">📎</div>
+    <div style="font-size:13px;font-weight:600">Click to browse, drag &amp; drop, or press Ctrl+V to paste</div>
+    <div style="font-size:11.5px;color:var(--mu);margin-top:2px">Proof of payment on recorded date</div>
+    <input type="file" id="pf-file-inp" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden>
+  </div>
+
+  <div id="pf-file-list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+</div>
+
+<div class="msg" id="pf-msg" style="margin-top:10px;text-align:left"></div>
+
+<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center">
+  <button class="btn" id="pf-save-btn" style="width:auto;padding:10px 22px;margin:0">Save</button>
+  <button class="ghost" id="pf-cancel-btn">Cancel</button>
+  ${!isNew && adm() ? `<button class="ghost" id="pf-del-btn" style="margin-left:auto;color:#ef4444;border-color:#ef4444">Delete Record</button>` : ""}
+</div>
+`;
+
+  document.body.appendChild(d);
+  d.showModal();
+
+  const msg = d.querySelector("#pf-msg");
+  const descSel = d.querySelector("#pf-desc");
+  const descCust = d.querySelector("#pf-desc-custom");
+  const amtInp = d.querySelector("#pf-amount");
+  const dpInp = d.querySelector("#pf-date-paid");
+  const ddInp = d.querySelector("#pf-due-date");
+  const remInp = d.querySelector("#pf-remarks");
+  const dropzone = d.querySelector("#pf-dropzone");
+  const fileInp = d.querySelector("#pf-file-inp");
+  const fileListEl = d.querySelector("#pf-file-list");
+
+  // Track changes for Cancel confirmation
+  [descSel, descCust, amtInp, dpInp, ddInp, remInp].forEach(el => {
+    if (el) el.addEventListener("input", () => { formDirty = true; });
+  });
+
+  // Description change
+  descSel.onchange = () => {
+    formDirty = true;
+    descCust.style.display = descSel.value === "Other" ? "block" : "none";
+    if (descSel.value === "Other") descCust.focus();
+  };
+
+  // Date Paid -> Auto-calculate Next Due Date
+  dpInp.oninput = () => {
+    formDirty = true;
+    if (!manualDueDate && dpInp.value) {
+      ddInp.value = calcNextDueDate(dpInp.value);
+    }
+  };
+  ddInp.oninput = () => {
+    manualDueDate = true;
+    formDirty = true;
+  };
+
+  // Render Attached Files list
+  const renderFiles = () => {
+    fileListEl.innerHTML = "";
+    // Existing Attachments
+    existingAttachments.forEach((att, idx) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:8px;font-size:12px;border:1px solid var(--line)";
+      row.innerHTML = `
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px">
+          📄 ${esc(att.file_name || "Attachment")}
+        </span>
+        <div style="display:flex;gap:6px">
+          <button class="ghost" data-view-idx="${idx}" style="padding:2px 7px;font-size:11px">View</button>
+          <button class="ghost" data-del-idx="${idx}" style="padding:2px 7px;font-size:11px;color:#ef4444;border-color:#ef4444">✕</button>
+        </div>
+      `;
+      row.querySelector("[data-view-idx]").onclick = async () => {
+        const u = await signedUrl(att.storage_path);
+        if (u) window.open(u, "_blank");
+      };
+      row.querySelector("[data-del-idx]").onclick = () => {
+        formDirty = true;
+        existingAttachments.splice(idx, 1);
+        renderFiles();
+      };
+      fileListEl.appendChild(row);
+    });
+
+    // Staged New Files
+    stagedFiles.forEach((f, idx) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;background:rgba(224,177,58,0.08);padding:6px 10px;border-radius:8px;font-size:12px;border:1px solid rgba(224,177,58,0.3)";
+      row.innerHTML = `
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px">
+          📎 <b>[New]</b> ${esc(f.name)} <small style="color:var(--mu)">(${(f.size / 1024).toFixed(0)} KB)</small>
+        </span>
+        <button class="ghost" data-rem-staged="${idx}" style="padding:2px 7px;font-size:11px;color:#ef4444;border-color:#ef4444">✕</button>
+      `;
+      row.querySelector("[data-rem-staged]").onclick = () => {
+        stagedFiles.splice(idx, 1);
+        renderFiles();
+      };
+      fileListEl.appendChild(row);
+    });
+  };
+  renderFiles();
+
+  // Add files helper
+  const addFiles = fileArr => {
+    for (const f of fileArr) {
+      if (f.size > 20 * 1048576) {
+        msg.textContent = `File "${f.name}" exceeds 20 MB limit.`;
+        continue;
+      }
+      stagedFiles.push(f);
+      formDirty = true;
+    }
+    renderFiles();
+  };
+
+  // Upload handlers
+  dropzone.onclick = () => fileInp.click();
+  fileInp.onchange = e => {
+    if (e.target.files && e.target.files.length) {
+      addFiles([...e.target.files]);
+      fileInp.value = "";
+    }
+  };
+
+  dropzone.ondragover = e => { e.preventDefault(); dropzone.style.borderColor = "var(--gold)"; };
+  dropzone.ondragleave = () => { dropzone.style.borderColor = "var(--line)"; };
+  dropzone.ondrop = e => {
+    e.preventDefault();
+    dropzone.style.borderColor = "var(--line)";
+    if (e.dataTransfer && e.dataTransfer.files) addFiles([...e.dataTransfer.files]);
+  };
+
+  // Ctrl+V Paste handler inside dialog
+  const pasteHandler = e => {
+    if (!d.open) return;
+    const items = [...(e.clipboardData?.files || [])];
+    if (items.length) {
+      e.preventDefault();
+      addFiles(items);
+    }
+  };
+  document.addEventListener("paste", pasteHandler);
+
+  const cleanClose = () => {
+    document.removeEventListener("paste", pasteHandler);
+    d.close();
+    d.remove();
+  };
+
+  // SECTION 3: CANCEL BUTTON & CONFIRMATION
+  const cancelAction = () => {
+    if (!formDirty && stagedFiles.length === 0) {
+      cleanClose();
+      return;
+    }
+    const cDlg = document.createElement("dialog");
+    cDlg.style.cssText = "max-width:380px;width:90vw;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--tx);padding:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.8)";
+    cDlg.innerHTML = `
+      <h4 style="margin:0 0 8px;font-size:16px;color:#fff">Discard Unsaved Changes?</h4>
+      <p style="font-size:13.5px;color:var(--mu);margin:0 0 16px;line-height:1.45">Are you sure you want to cancel? Any unsaved changes will be discarded.</p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="ghost" id="cd-yes" style="color:#ef4444;border-color:#ef4444;padding:8px 16px">Yes, Cancel</button>
+        <button class="btn" id="cd-no" style="width:auto;padding:8px 16px;margin:0">Continue Editing</button>
+      </div>
+    `;
+    document.body.appendChild(cDlg);
+    cDlg.showModal();
+    cDlg.querySelector("#cd-yes").onclick = () => { cDlg.close(); cDlg.remove(); cleanClose(); };
+    cDlg.querySelector("#cd-no").onclick = () => { cDlg.close(); cDlg.remove(); };
+  };
+
+  d.querySelector("#dlg-x").onclick = cancelAction;
+  d.querySelector("#pf-cancel-btn").onclick = cancelAction;
+
+  // SECTION 3: SAVE BUTTON & CONFIRMATION
+  d.querySelector("#pf-save-btn").onclick = () => {
+    const finalDesc = descSel.value === "Other" ? descCust.value.trim() : descSel.value;
+    const amountVal = parseFloat(amtInp.value);
+    const datePaidVal = dpInp.value;
+    const dueDateVal = ddInp.value;
+
+    if (!finalDesc) { msg.textContent = "Please enter a payment description."; return; }
+    if (isNaN(amountVal) || amountVal <= 0) { msg.textContent = "Please enter a valid payment amount greater than 0."; return; }
+    if (!datePaidVal) { msg.textContent = "Please choose the date paid."; return; }
+    if (!dueDateVal) { msg.textContent = "Please provide the next due date."; return; }
+
+    // Confirm Save Dialog
+    const sDlg = document.createElement("dialog");
+    sDlg.style.cssText = "max-width:420px;width:90vw;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--tx);padding:22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.8)";
+    sDlg.innerHTML = `
+      <div style="font-size:28px;margin-bottom:6px">📋</div>
+      <h4 style="margin:0 0 8px;font-size:16px;color:#fff">Confirm Payment Record</h4>
+      <p style="font-size:13px;color:var(--mu);margin:0 0 14px;line-height:1.45">
+        Are you sure you want to save this payment record? Please verify the amount, payment date, and attached acknowledgement receipt before proceeding.
+      </p>
+      <div style="text-align:left;background:rgba(0,0,0,0.25);padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:16px">
+        <div>Booth: <b>${esc(boothCode)}</b></div>
+        <div>Description: <b>${esc(finalDesc)}</b></div>
+        <div>Amount: <b style="color:var(--gold)">${money(amountVal)}</b></div>
+        <div>Date Paid: <b>${fd(datePaidVal)}</b></div>
+        <div>Next Due Date: <b>${fd(dueDateVal)}</b></div>
+        <div>Receipts: <b>${existingAttachments.length + stagedFiles.length} file(s)</b></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" id="sd-confirm" style="width:auto;padding:9px 20px;margin:0">Confirm Save</button>
+        <button class="ghost" id="sd-back" style="padding:9px 16px">Go Back</button>
+      </div>
+    `;
+    document.body.appendChild(sDlg);
+    sDlg.showModal();
+
+    sDlg.querySelector("#sd-back").onclick = () => { sDlg.close(); sDlg.remove(); };
+
+    sDlg.querySelector("#sd-confirm").onclick = async () => {
+      sDlg.close();
+      sDlg.remove();
+
+      const saveBtn = d.querySelector("#pf-save-btn");
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      msg.style.color = "var(--gold)";
+      msg.textContent = "Saving payment record…";
+
+      try {
+        const payload = {
+          booth_code: boothCode,
+          payment_description: finalDesc,
+          amount: amountVal,
+          date_paid: datePaidVal,
+          payment_period: periodStr,
+          next_due_date: dueDateVal,
+          due_date_override: manualDueDate,
+          remarks: remInp.value.trim() || null,
+          status: "Paid",
+          updated_at: new Date().toISOString()
+        };
+
+        let paymentId = existingPay ? existingPay.id : null;
+
+        if (isNew) {
+          payload.created_by = me ? me.id : null;
+          const { data: ins, error: insErr } = await sb
+            .from("booth_payments")
+            .insert(payload)
+            .select()
+            .single();
+          if (insErr) throw insErr;
+          paymentId = ins.id;
+        } else {
+          const { error: upErr } = await sb
+            .from("booth_payments")
+            .update(payload)
+            .eq("id", paymentId);
+          if (upErr) throw upErr;
+        }
+
+        // Upload any staged new attachments
+        if (stagedFiles.length > 0) {
+          msg.textContent = `Uploading ${stagedFiles.length} receipt attachment(s)…`;
+          for (const file of stagedFiles) {
+            const ext = file.name.split(".").pop().toLowerCase() || "jpg";
+            const storagePath = `${boothCode}/${periodStr}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+            const { error: upErr } = await sb.storage
+              .from(BUCKET)
+              .upload(storagePath, file, { contentType: file.type });
+            if (upErr) {
+              console.warn("Receipt upload issue:", upErr);
+            }
+            await sb.from("booth_payment_attachments").insert({
+              payment_id: paymentId,
+              booth_code: boothCode,
+              storage_path: storagePath,
+              file_name: file.name,
+              file_size: file.size,
+              file_type: file.type,
+              uploaded_by: me ? me.id : null
+            });
+          }
+        }
+
+        // Remove deleted attachments from DB & Storage
+        if (existingPay && existingPay.attachments) {
+          const keptIds = new Set(existingAttachments.map(a => a.id));
+          const toRemove = existingPay.attachments.filter(a => !keptIds.has(a.id));
+          for (const rem of toRemove) {
+            await sb.storage.from(BUCKET).remove([rem.storage_path]);
+            await sb.from("booth_payment_attachments").delete().eq("id", rem.id);
+          }
+        }
+
+        cleanClose();
+        alert("Payment record successfully saved!");
+        rent(v);
+      } catch (err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save";
+        msg.style.color = "#ff8b9b";
+        msg.textContent = "Could not save payment: " + (err?.message || String(err));
+      }
+    };
+  };
+
+  // Delete Record Handler (Admin Only)
+  const delBtn = d.querySelector("#pf-del-btn");
+  if (delBtn) {
+    delBtn.onclick = async () => {
+      if (!confirm("Permanently delete this payment record and all attached receipts?")) return;
+      delBtn.disabled = true;
+      msg.textContent = "Deleting…";
+      try {
+        if (existingAttachments.length > 0) {
+          await sb.storage.from(BUCKET).remove(existingAttachments.map(a => a.storage_path));
+        }
+        const { error: delErr } = await sb
+          .from("booth_payments")
+          .delete()
+          .eq("id", existingPay.id);
+        if (delErr) throw delErr;
+        cleanClose();
+        alert("Payment record deleted.");
+        rent(v);
+      } catch (e) {
+        delBtn.disabled = false;
+        msg.style.color = "#ff8b9b";
+        msg.textContent = "Could not delete: " + (e?.message || String(e));
+      }
+    };
+  }
+}
+
+// -------------------------------------------------------------------------
+// SECTION 4: ATTACHMENTS VIEW DIALOG
+// -------------------------------------------------------------------------
+function viewAttachmentsDialog(attachments) {
+  const d = document.createElement("dialog");
+  d.style.cssText = "max-width:560px;width:95vw;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--tx);padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.8)";
+  d.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h4 style="margin:0;font-size:16px;color:#fff">📎 Acknowledgement Receipts (${attachments.length})</h4>
+      <button class="ghost" id="vd-close" style="padding:4px 9px;font-size:12px">✕</button>
+    </div>
+    <div id="vd-list" style="display:flex;flex-direction:column;gap:12px;max-height:65vh;overflow-y:auto">
+      <div class="spin" style="margin:20px auto"></div>
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.showModal();
+
+  d.querySelector("#vd-close").onclick = () => { d.close(); d.remove(); };
+
+  (async () => {
+    const listEl = d.querySelector("#vd-list");
+    const itemsHtml = await Promise.all(attachments.map(async att => {
+      const u = await signedUrl(att.storage_path);
+      const isImg = !att.file_type || /^image\//.test(att.file_type);
+      return `
+        <div style="border:1px solid var(--line);border-radius:10px;padding:10px;background:rgba(0,0,0,0.25)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <b style="font-size:13px">${esc(att.file_name || "Receipt")}</b>
+            ${u ? `<a href="${u}" target="_blank" download="${esc(att.file_name || 'receipt')}" class="btn" style="width:auto;padding:4px 10px;font-size:11px;margin:0">Download</a>` : ""}
+          </div>
+          ${isImg && u ? `
+            <div style="text-align:center;background:#050d24;border-radius:8px;padding:6px">
+              <a href="${u}" target="_blank">
+                <img src="${u}" alt="${esc(att.file_name)}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:6px">
+              </a>
+            </div>
+          ` : `
+            <div style="padding:16px;text-align:center;color:var(--mu);font-size:13px">
+              Document attachment (PDF / file). <a href="${u}" target="_blank" style="color:var(--gold);text-decoration:underline">Click to open &amp; view</a>
+            </div>
+          `}
+        </div>
+      `;
+    }));
+    listEl.innerHTML = itemsHtml.join("");
+  })();
+}
+
+// -------------------------------------------------------------------------
+// SECTION 6: INVENTORY MANAGEMENT
+// -------------------------------------------------------------------------
+function renderInventory(v) {
+  // Map existing quantities or default to 0
+  const invMap = new Map();
+  INVENTORY_DATA.forEach(item => {
+    invMap.set(`${item.category}_${item.equipment_type}`, item);
+  });
+
+  const getQty = (cat, eq) => {
+    const it = invMap.get(`${cat}_${eq}`);
+    return it && Number.isInteger(it.quantity) ? it.quantity : 0;
+  };
+
+  // Categories quantities
+  const activeCell = getQty("active", "cellphone");
+  const activePrint = getQty("active", "printer");
+  const activePos = getQty("active", "pos");
+  const activeTotal = activeCell + activePrint + activePos;
+
+  const resCell = getQty("reserve", "cellphone");
+  const resPrint = getQty("reserve", "printer");
+  const resPos = getQty("reserve", "pos");
+  const resTotal = resCell + resPrint + resPos;
+
+  const repCell = getQty("repair", "cellphone");
+  const repPrint = getQty("repair", "printer");
+  const repPos = getQty("repair", "pos");
+  const repTotal = repCell + repPrint + repPos;
+
+  // Combined Totals
+  const totalCellphones = activeCell + resCell + repCell;
+  const totalPrinters = activePrint + resPrint + repPrint;
+  const totalPos = activePos + resPos + repPos;
+  const grandTotal = totalCellphones + totalPrinters + totalPos;
+
+  v.innerHTML = `
+<div class="hdr2">
+  <div>
+    <div style="font-size:18px;font-weight:700">📦 Equipment Inventory Management</div>
+    <div class="chip">Track Cellphones, Portable Printers, and POS units across 3 condition categories</div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="chip2" id="tab-booths">🏢 Booth Payments</button>
+    <button class="chip2 on" id="tab-inventory">📦 Equipment Inventory</button>
+  </div>
+</div>
+
+<!-- INVENTORY DASHBOARD SUMMARY CARDS -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px">
+  <!-- CARD A: ACTIVE -->
+  <div class="box" style="margin:0;background:var(--panel);border:1px solid #22c55e;border-radius:14px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <b style="font-size:16px;color:#22c55e">🟢 ACTIVE INVENTORY</b>
+      <span class="pill" style="background:#22c55e">${activeTotal} Total</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📱 Cellphones</span>
+        <b style="font-size:16px">${activeCell}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>🖨️ Portable Printers</span>
+        <b style="font-size:16px">${activePrint}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📟 POS Units</span>
+        <b style="font-size:16px">${activePos}</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD B: RESERVE / ONHAND -->
+  <div class="box" style="margin:0;background:var(--panel);border:1px solid #e0b13a;border-radius:14px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <b style="font-size:16px;color:#e0b13a">🟡 RESERVE / ONHAND</b>
+      <span class="pill" style="background:#e0b13a">${resTotal} Total</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📱 Cellphones</span>
+        <b style="font-size:16px">${resCell}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>🖨️ Portable Printers</span>
+        <b style="font-size:16px">${resPrint}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📟 POS Units</span>
+        <b style="font-size:16px">${resPos}</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD C: DAMAGE / FOR REPAIR -->
+  <div class="box" style="margin:0;background:var(--panel);border:1px solid #ef4444;border-radius:14px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <b style="font-size:16px;color:#ef4444">🔴 DAMAGE / FOR REPAIR</b>
+      <span class="pill" style="background:#ef4444">${repTotal} Total</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13.5px">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📱 Cellphones</span>
+        <b style="font-size:16px">${repCell}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>🖨️ Portable Printers</span>
+        <b style="font-size:16px">${repPrint}</b>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:6px">
+        <span>📟 POS Units</span>
+        <b style="font-size:16px">${repPos}</b>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMBINED INVENTORY SUMMARY & ACTIONS -->
+<div class="box" style="background:linear-gradient(170deg,#10265a,#0a1a3f);border:1px solid var(--gold);border-radius:14px;padding:20px;margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div>
+      <b style="font-size:17px;color:var(--gold)">📊 Combined Inventory Summary</b>
+      <div class="chip" style="margin-top:2px">Automatically calculated from Active, Reserve, and Damage categories</div>
+    </div>
+    ${sup() ? `<button class="btn" id="inv-edit-btn" style="width:auto;padding:9px 20px;margin:0">✏️ Edit Inventory Quantities</button>` : ""}
+  </div>
+
+  <div class="kpis" style="margin:0">
+    <div class="kpi">
+      <small>TOTAL CELLPHONES</small>
+      <b style="color:var(--tx)">${totalCellphones}</b>
+      <small style="color:var(--mu)">Active + Reserve + Repair</small>
+    </div>
+    <div class="kpi">
+      <small>TOTAL PRINTERS</small>
+      <b style="color:var(--tx)">${totalPrinters}</b>
+      <small style="color:var(--mu)">Active + Reserve + Repair</small>
+    </div>
+    <div class="kpi">
+      <small>TOTAL POS UNITS</small>
+      <b style="color:var(--tx)">${totalPos}</b>
+      <small style="color:var(--mu)">Active + Reserve + Repair</small>
+    </div>
+    <div class="kpi">
+      <small style="color:var(--gold)">GRAND TOTAL EQUIPMENT</small>
+      <b style="color:var(--gold)">${grandTotal}</b>
+      <small style="color:var(--mu)">All 9 equipment slots</small>
+    </div>
+  </div>
+</div>
+`;
+
+  // Wire Top Tabs
+  const tb = v.querySelector("#tab-booths"), ti = v.querySelector("#tab-inventory");
+  if (tb) tb.onclick = () => { R.tab = "booths"; rent(v); };
+  if (ti) ti.onclick = () => { R.tab = "inventory"; rent(v); };
+
+  // Wire Edit Quantities
+  const editBtn = v.querySelector("#inv-edit-btn");
+  if (editBtn) {
+    editBtn.onclick = () => openInventoryEditModal(invMap, v);
+  }
+}
+
+// Inventory Edit Modal
+function openInventoryEditModal(invMap, v) {
+  const getQty = (cat, eq) => {
+    const it = invMap.get(`${cat}_${eq}`);
+    return it && Number.isInteger(it.quantity) ? it.quantity : 0;
+  };
+  const getRem = (cat, eq) => {
+    const it = invMap.get(`${cat}_${eq}`);
+    return it && it.remarks ? it.remarks : "";
+  };
+
+  const d = document.createElement("dialog");
+  d.style.cssText = "max-width:580px;width:95vw;border-radius:16px;border:1px solid var(--line);background:var(--panel);color:var(--tx);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.8)";
+
+  d.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <h3 style="margin:0;font-size:17px;color:#fff">✏️ Update Equipment Inventory</h3>
+  <button class="ghost" id="ie-close" style="padding:4px 9px;font-size:12px">✕</button>
+</div>
+<div class="chip" style="margin-bottom:14px">Quantities must be whole non-negative numbers (0, 1, 2…).</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;max-height:65vh;overflow-y:auto;padding-right:4px">
+  <!-- ACTIVE -->
+  <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:12px">
+    <b style="color:#22c55e;font-size:14px">ACTIVE INVENTORY</b>
+    <div class="g2" style="margin-top:8px;gap:8px 12px">
+      <div><label>Cellphone</label><input type="number" id="iq-act-cell" min="0" step="1" value="${getQty('active','cellphone')}"></div>
+      <div><label>Portable Printer</label><input type="number" id="iq-act-print" min="0" step="1" value="${getQty('active','printer')}"></div>
+      <div><label>POS Unit</label><input type="number" id="iq-act-pos" min="0" step="1" value="${getQty('active','pos')}"></div>
+      <div><label>Remarks</label><input type="text" id="ir-act" placeholder="Optional notes…" value="${esc(getRem('active','cellphone'))}"></div>
+    </div>
+  </div>
+
+  <!-- RESERVE -->
+  <div style="background:rgba(224,177,58,0.06);border:1px solid rgba(224,177,58,0.3);border-radius:10px;padding:12px">
+    <b style="color:#e0b13a;font-size:14px">RESERVE / ONHAND</b>
+    <div class="g2" style="margin-top:8px;gap:8px 12px">
+      <div><label>Cellphone</label><input type="number" id="iq-res-cell" min="0" step="1" value="${getQty('reserve','cellphone')}"></div>
+      <div><label>Portable Printer</label><input type="number" id="iq-res-print" min="0" step="1" value="${getQty('reserve','printer')}"></div>
+      <div><label>POS Unit</label><input type="number" id="iq-res-pos" min="0" step="1" value="${getQty('reserve','pos')}"></div>
+      <div><label>Remarks</label><input type="text" id="ir-res" placeholder="Optional notes…" value="${esc(getRem('reserve','cellphone'))}"></div>
+    </div>
+  </div>
+
+  <!-- DAMAGE -->
+  <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px">
+    <b style="color:#ef4444;font-size:14px">DAMAGE / FOR REPAIR</b>
+    <div class="g2" style="margin-top:8px;gap:8px 12px">
+      <div><label>Cellphone</label><input type="number" id="iq-rep-cell" min="0" step="1" value="${getQty('repair','cellphone')}"></div>
+      <div><label>Portable Printer</label><input type="number" id="iq-rep-print" min="0" step="1" value="${getQty('repair','printer')}"></div>
+      <div><label>POS Unit</label><input type="number" id="iq-rep-pos" min="0" step="1" value="${getQty('repair','pos')}"></div>
+      <div><label>Remarks</label><input type="text" id="ir-rep" placeholder="Optional notes…" value="${esc(getRem('repair','cellphone'))}"></div>
+    </div>
+  </div>
+</div>
+
+<div class="msg" id="ie-msg" style="margin-top:10px"></div>
+
+<div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+  <button class="ghost" id="ie-cancel">Cancel</button>
+  <button class="btn" id="ie-save" style="width:auto;padding:10px 24px;margin:0">Save Quantities</button>
+</div>
+`;
+
+  document.body.appendChild(d);
+  d.showModal();
+
+  const msg = d.querySelector("#ie-msg");
+  const close = () => { d.close(); d.remove(); };
+  d.querySelector("#ie-close").onclick = close;
+  d.querySelector("#ie-cancel").onclick = close;
+
+  d.querySelector("#ie-save").onclick = async () => {
+    const parse = id => {
+      const v2 = parseInt(d.querySelector("#" + id).value, 10);
+      return isNaN(v2) || v2 < 0 ? null : v2;
+    };
+
+    const qActCell = parse("iq-act-cell"), qActPrint = parse("iq-act-print"), qActPos = parse("iq-act-pos");
+    const qResCell = parse("iq-res-cell"), qResPrint = parse("iq-res-print"), qResPos = parse("iq-res-pos");
+    const qRepCell = parse("iq-rep-cell"), qRepPrint = parse("iq-rep-print"), qRepPos = parse("iq-rep-pos");
+
+    if ([qActCell, qActPrint, qActPos, qResCell, qResPrint, qResPos, qRepCell, qRepPrint, qRepPos].some(x => x === null)) {
+      msg.textContent = "All quantities must be valid non-negative whole numbers (0 or greater).";
+      return;
+    }
+
+    const rAct = d.querySelector("#ir-act").value.trim() || null;
+    const rRes = d.querySelector("#ir-res").value.trim() || null;
+    const rRep = d.querySelector("#ir-rep").value.trim() || null;
+
+    const btn = d.querySelector("#ie-save");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+
+    const rows = [
+      { category: "active", equipment_type: "cellphone", quantity: qActCell, remarks: rAct },
+      { category: "active", equipment_type: "printer", quantity: qActPrint, remarks: rAct },
+      { category: "active", equipment_type: "pos", quantity: qActPos, remarks: rAct },
+
+      { category: "reserve", equipment_type: "cellphone", quantity: qResCell, remarks: rRes },
+      { category: "reserve", equipment_type: "printer", quantity: qResPrint, remarks: rRes },
+      { category: "reserve", equipment_type: "pos", quantity: qResPos, remarks: rRes },
+
+      { category: "repair", equipment_type: "cellphone", quantity: qRepCell, remarks: rRep },
+      { category: "repair", equipment_type: "printer", quantity: qRepPrint, remarks: rRep },
+      { category: "repair", equipment_type: "pos", quantity: qRepPos, remarks: rRep }
+    ].map(r => ({ ...r, updated_by: me ? me.id : null, updated_at: new Date().toISOString() }));
+
+    try {
+      const { error } = await sb
+        .from("equipment_inventory")
+        .upsert(rows, { onConflict: "category,equipment_type" });
+      if (error) throw error;
+      close();
+      alert("Inventory quantities successfully saved!");
+      rent(v);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Save Quantities";
+      msg.style.color = "#ff8b9b";
+      msg.textContent = "Could not save inventory: " + (e?.message || String(e));
+    }
+  };
+}
+
+// -------------------------------------------------------------------------
+// Register Module in window.MODS
+// -------------------------------------------------------------------------
+window.MODS = Object.assign(window.MODS || {}, { [NAME]: rent });
 })();
