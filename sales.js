@@ -238,8 +238,8 @@ function buildExcelTabBar(area, activeSheetName, dateStr){
       { name: "Sheet1", color: null, textColor: "#333333" },
       { name: "NELSON AREA", color: "#FF0000", textColor: "#ffffff" },
       { name: "CHARLIE AREA", color: "#215F9A", textColor: "#ffffff" },
-      { name: eodName, color: null, textColor: "#333333" },
-      { name: "Low Sales", color: null, textColor: "#333333" }
+      { name: eodName, color: null, textColor: "#555555" },
+      { name: "Low Sales", color: null, textColor: "#555555" }
     ];
   } else {
     tabs = [
@@ -249,7 +249,7 @@ function buildExcelTabBar(area, activeSheetName, dateStr){
       { name: "MUHLEN NEW AREA", color: "#02A5E3", textColor: "#000000" },
       { name: "JASON NEW AREA", color: "#92D04F", textColor: "#000000" },
       { name: "MAC² NEW AREA", color: "#FFC000", textColor: "#000000" },
-      { name: eodName, color: null, textColor: "#333333" }
+      { name: eodName, color: null, textColor: "#555555" }
     ];
   }
 
@@ -258,26 +258,26 @@ function buildExcelTabBar(area, activeSheetName, dateStr){
     if(isActive){
       const underlineColor = tab.color || "#107c41";
       const fontColor = (tab.color === "#FFC000" || tab.color === "#92D04F") ? "#107c41" : (tab.color || "#107c41");
-      return `<div style="background:#ffffff;border-top:1px solid #d4d4d4;border-left:1px solid #d4d4d4;border-right:1px solid #d4d4d4;border-bottom:3px solid ${underlineColor};padding:4px 14px 2px 14px;font-weight:bold;color:${fontColor};font-size:11px;border-radius:2px 2px 0 0;box-shadow:0 -1px 2px rgba(0,0,0,0.06);white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+      return `<div style="background:#ffffff;border-top:1px solid #d4d4d4;border-left:1px solid #d4d4d4;border-right:1px solid #d4d4d4;border-bottom:3px solid ${underlineColor};padding:3px 12px 1px 12px;font-weight:bold;color:${fontColor};font-size:10px;border-radius:2px 2px 0 0;box-shadow:0 -1px 2px rgba(0,0,0,0.06);white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
     } else {
       if(tab.color){
-        return `<div style="background:${tab.color};border:1px solid rgba(0,0,0,0.18);padding:4px 12px;font-weight:bold;color:${tab.textColor};font-size:11px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+        return `<div style="background:${tab.color};border:1px solid rgba(0,0,0,0.18);padding:3px 10px;font-weight:bold;color:${tab.textColor};font-size:10px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
       } else {
-        return `<div style="background:#f3f3f3;border:1px solid #d4d4d4;padding:4px 12px;font-weight:normal;color:#444444;font-size:11px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+        return `<div style="background:#f3f3f3;border:1px solid #d4d4d4;padding:3px 10px;font-weight:normal;color:#444444;font-size:10px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
       }
     }
   }).join("");
 
-  return `<div style="background:#f3f3f3;border-top:1px solid #c8c8c8;display:flex;align-items:center;height:30px;padding:0 8px;font-family:'Segoe UI',Calibri,Arial,sans-serif;user-select:none;box-sizing:border-box;margin-top:8px;">
-    <div style="display:flex;gap:4px;color:#595959;font-weight:bold;margin-right:10px;font-size:10px;">
+  return `<div style="background:#f3f3f3;border-top:1px solid #c8c8c8;display:flex;align-items:center;height:24px;padding:0 6px;font-family:'Segoe UI',Calibri,Arial,sans-serif;user-select:none;box-sizing:border-box;margin-top:auto;">
+    <div style="display:flex;gap:4px;color:#595959;font-weight:bold;margin-right:8px;font-size:10px;">
       <span>◀</span><span>▶</span>
     </div>
-    <div style="display:flex;align-items:flex-end;gap:3px;height:100%;padding-top:2px;">
+    <div style="display:flex;align-items:flex-end;gap:2px;height:100%;padding-top:2px;">
       ${tabsHtml}
     </div>
-    <div style="margin-left:8px;width:18px;height:18px;border-radius:50%;border:1px solid #b0b0b0;display:flex;align-items:center;justify-content:center;color:#555;font-size:12px;font-weight:bold;">+</div>
-    <div style="margin-left:auto;width:280px;height:10px;background:#e1e4e8;border-radius:5px;position:relative;">
-      <div style="position:absolute;left:24px;width:75px;height:100%;background:#b6bcc4;border-radius:5px;"></div>
+    <div style="margin-left:6px;width:15px;height:15px;border-radius:50%;border:1px solid #b0b0b0;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;font-weight:bold;">+</div>
+    <div style="margin-left:auto;width:200px;height:7px;background:#e1e4e8;border-radius:4px;position:relative;">
+      <div style="position:absolute;left:20px;width:55px;height:100%;background:#b6bcc4;border-radius:4px;"></div>
     </div>
   </div>`;
 }
@@ -287,68 +287,70 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
   const outletsSlice=A.outlets.slice(startIdx,endIdx);
   const dateStr=dmy(snap.date);
   const areaTitle=LABEL[area]||area;
-  let h=`<div style="background:#ffffff;padding:8px;width:1420px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
-    <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
+  const chunkHeight=sam?435:453;
+  let h=`<div style="background:#ffffff;width:1024px;height:${chunkHeight}px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;font-family:Calibri,Arial,sans-serif;margin:0;padding:0;">
+    <table style="border-collapse:collapse;width:1024px;font-size:10px;color:#000000;table-layout:fixed;margin:0;padding:0;">
       <colgroup>
-        <col style="width:38px">
-        <col style="width:45px">
-        <col style="width:120px">
-        <col style="width:380px">
+        <col style="width:24px">
+        <col style="width:32px">
+        <col style="width:94px">
         <col style="width:260px">
-        <col style="width:120px">
-        <col style="width:115px">
-        <col style="width:120px">
-        <col style="width:125px">
-        <col style="width:97px">
+        <col style="width:180px">
+        <col style="width:95px">
+        <col style="width:80px">
+        <col style="width:90px">
+        <col style="width:95px">
+        <col style="width:74px">
       </colgroup>
       <thead>
-        <tr style="height:20px;">
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
+        <tr style="height:18px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:18px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
         </tr>
-        <tr style="height:36px;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
+        <tr style="height:28px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
-          <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:22px;font-weight:bold;text-align:center;">DATE</th>
-          <th style="border:1px solid #bfbfbf;background:#a5c9ec;font-size:20px;font-weight:bold;text-align:center;">${esc(dateStr)}</th>
-          <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:20px;font-weight:bold;text-align:center;">${esc(areaTitle)}</th>
+          <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:14px;font-weight:bold;text-align:center;color:#000000;">DATE</th>
+          <th style="border:1px solid #bfbfbf;background:#a5c9ec;font-size:14px;font-weight:bold;text-align:center;color:#000000;">${esc(dateStr)}</th>
+          <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:15px;font-weight:bold;text-align:center;color:#000000;">${esc(areaTitle)}</th>
         </tr>
-        <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">NO.</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">BOOTH CODE</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">ADDRESS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TELLER</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TOTAL BETS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">${sam?"PAY OUT":"PAYOUTS"}</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">COMMISSION</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">PALAWAN</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">SALARY</th>
+        <tr style="height:18px;font-size:10px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">NO.</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">BOOTH CODE</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">ADDRESS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TELLER</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TOTAL BETS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">${sam?"PAY OUT":"PAYOUTS"}</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">COMMISSION</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">PALAWAN</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">SALARY</th>
         </tr>
       </thead>
       <tbody>`;
+  let renderedRows=2;
   outletsSlice.forEach((o,idx)=>{
     const excelRow=startIdx+idx+3;
     const isOff=!!o.off;
     const color=isOff?"#ff0000":"#000000";
     const bold=isOff?"font-weight:bold;":"";
-    const sc=`border:1px solid #bfbfbf;padding:3px 5px;color:${color};${bold}`;
-    const betsVal=o.bets>0?money(o.bets):"0.00";
-    const payVal=o.pay>0?"₱ "+money(o.pay):(isOff?"—":"₱ 0.00");
-    const commVal=o.comm>0?"₱ "+money(o.comm):(isOff?"—":"₱ 0.00");
-    const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
-    const salVal=o.sal>0?money(o.sal):"0";
-    h+=`<tr style="height:22px;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${excelRow}</td>
+    const sc=`border:1px solid #bfbfbf;padding:0 3px;color:${color};${bold};overflow:hidden;white-space:nowrap;`;
+    const betsVal=isOff?(sam?"0.00 P":"0.00"):(sam?money(o.bets)+" P":(o.bets>0?money(o.bets):"0.00"));
+    const payVal=isOff?(sam?"-":"0.00 P"):(sam?(o.pay>0?money(o.pay)+" P":"-"):(o.pay>0?money(o.pay)+" P":"0.00 P"));
+    const commVal=isOff?(sam?`<span style="float:left">P</span>-`:"P -"):(sam?`<span style="float:left">P</span>${money(o.comm)} P`:money(o.comm)+" P");
+    const palVal=isOff?(sam?`<span style="float:left">P</span>-`:"P -"):(sam?`<span style="float:left">P</span>${money(o.pal)} P`:money(o.pal)+" P");
+    const salVal=isOff?"0":(o.sal>0?money(o.sal):"0.00");
+    h+=`<tr style="height:11.5px;max-height:11.5px;line-height:11.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${excelRow}</td>
       <td style="${sc}text-align:center;">${startIdx+idx+1}</td>
       <td style="${sc}text-align:center;font-weight:bold;">${esc(o.code)}</td>
       <td style="${sc}text-align:left;">${esc(o.address||"")}</td>
@@ -359,58 +361,101 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
       <td style="${sc}text-align:right;">${palVal}</td>
       <td style="${sc}text-align:right;">${salVal}</td>
     </tr>`;
+    renderedRows++;
   });
+  let curRow=startIdx+outletsSlice.length+3;
   if(isLastChunk){
-    let curRow=startIdx+outletsSlice.length+3;
-    A.collectors.forEach(c=>{
-      h+=`<tr style="height:22px;">
-        <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">${esc(c)}</td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;"></td>
-        <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">500.00</td>
-      </tr>`;
-    });
-    h+=`<tr style="height:26px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    if(sam){
+      A.collectors.forEach(c=>{
+        h+=`<tr style="height:11.5px;max-height:11.5px;line-height:11.5px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;font-weight:bold;text-align:left;">${esc(c)}</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">0.00 P</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:center;">-</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>-</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>-</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">500.00 P</td>
+        </tr>`;
+        renderedRows++;
+      });
+    }else{
+      A.collectors.forEach(c=>{
+        h+=`<tr style="height:11.5px;max-height:11.5px;line-height:11.5px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;font-weight:bold;text-align:left;">${esc(c)}</td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;"></td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">P</td>
+          <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">500.00</td>
+        </tr>`;
+        renderedRows++;
+      });
+    }
+    h+=`<tr style="height:12.5px;font-weight:bold;line-height:12.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL</td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.bets)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.pay)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.comm)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.pal)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.sal)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.bets)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">${money(t.pay)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.comm)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.pal)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.sal)} P</td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:12px;font-weight:bold;line-height:12px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.comm)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">COMMISSION</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.comm)}</td>
       <td style="border:none;"></td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:12px;font-weight:bold;line-height:12px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.gross)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL GROSS</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(t.gross)}</td>
       <td style="border:none;"></td>
     </tr>`;
+    const svName=SV[area]?.[0]||"PETER JOHN CARRILLO";
+    h+=`<tr style="height:13px;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:none;"></td>
+      <td style="border:none;font-family:'Cutive Mono',Consolas,monospace;font-size:10px;color:#02a5e3;font-weight:bold;padding-left:4px;">PREPARED BY:</td>
+      <td colspan="7" style="border:none;"></td>
+    </tr>
+    <tr style="height:14px;line-height:14px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:none;"></td>
+      <td colspan="2" style="border:none;font-family:'Cutive Mono',Consolas,monospace;font-size:13px;color:#02a5e3;font-weight:bold;font-style:italic;padding-left:4px;">SV: ${esc(svName)}</td>
+      <td colspan="6" style="border:none;"></td>
+    </tr>`;
+    renderedRows+=5;
+  }
+  // Fill empty rows until row count is at least 33 so table fills canvas height cleanly
+  while(renderedRows < 33){
+    h+=`<tr style="height:11.5px;max-height:11.5px;line-height:11.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+    </tr>`;
+    renderedRows++;
   }
   h+=`</tbody></table>`;
-  if(isLastChunk){
-    const svName=SV[area]?.[0]||"PETER JOHN CARRILLO";
-    h+=`<div style="margin-top:20px;padding-left:170px;">
-      <div style="font-family:'Courier New',Courier,monospace;font-size:13px;color:#02A5E3;font-weight:bold;">PREPARED BY:</div>
-      <div style="font-family:'Courier New',Courier,monospace;font-size:18px;color:#02A5E3;font-weight:bold;font-style:italic;margin-top:4px;">SV: ${esc(svName)}</div>
-    </div>`;
-  }
   h+=buildExcelTabBar(area, "Sheet1", snap.date);
   h+=`</div>`;
   return h;
@@ -419,46 +464,46 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
 function buildAreaTableHtmlDDN(snap,col){
   const A=snap.areas.DDN,os=A.outlets.filter(o=>o.collector===col);
   const dateStr=dmy(snap.date);
-  const colColor={JOHN:"#FF0000",JAYSON:"#E97132",MUHLEN:"#3399FF",JASON:"#92D050","MAC²":"#FFFF00"}[col]||"#FF0000";
+  const colColor={JOHN:"#FF0000",JAYSON:"#E97132",MUHLEN:"#02A5E3",JASON:"#92D04F","MAC²":"#FFFF00"}[col]||"#FF0000";
   const sumBets=os.reduce((s,x)=>s+x.bets,0),sumPay=os.reduce((s,x)=>s+x.pay,0),sumComm=sumBets*0.125,sumPal=sumBets-sumPay-sumComm,sumSal=os.reduce((s,x)=>s+x.sal,0);
-  let h=`<div style="background:#ffffff;padding:8px;width:1340px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
-    <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
+  let h=`<div style="background:#ffffff;width:1024px;height:442px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;font-family:Calibri,Arial,sans-serif;margin:0;padding:0;">
+    <table style="border-collapse:collapse;width:1024px;font-size:10px;color:#000000;table-layout:fixed;margin:0;padding:0;">
       <colgroup>
-        <col style="width:38px">
-        <col style="width:430px">
-        <col style="width:250px">
-        <col style="width:125px">
-        <col style="width:115px">
-        <col style="width:125px">
-        <col style="width:130px">
-        <col style="width:127px">
+        <col style="width:24px">
+        <col style="width:305px">
+        <col style="width:177px">
+        <col style="width:108px">
+        <col style="width:102px">
+        <col style="width:107px">
+        <col style="width:109px">
+        <col style="width:92px">
       </colgroup>
       <thead>
-        <tr style="height:20px;">
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">D</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+        <tr style="height:18px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:18px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">D</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
         </tr>
-        <tr style="height:36px;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
-          <th style="border:1px solid #bfbfbf;background:#CC99FF;font-size:18px;font-weight:bold;text-align:center;">DATE :</th>
-          <th style="border:1px solid #bfbfbf;background:#99CCFF;font-size:18px;font-weight:bold;text-align:center;">${esc(dateStr)}</th>
-          <th colspan="5" style="border:1px solid #bfbfbf;background:${colColor};font-size:20px;font-weight:bold;text-align:center;color:#000000;">${esc(col)}</th>
+        <tr style="height:28px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
+          <th style="border:1px solid #bfbfbf;background:#CC99FF;font-size:15px;font-weight:bold;text-align:center;color:#000000;">DATE :</th>
+          <th style="border:1px solid #bfbfbf;background:#99CCFF;font-size:15px;font-weight:bold;text-align:center;color:#000000;">${esc(dateStr)}</th>
+          <th colspan="5" style="border:1px solid #bfbfbf;background:${colColor};font-size:17px;font-weight:bold;text-align:center;color:#000000;">${esc(col)}</th>
         </tr>
-        <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">OUTLETS:</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TELLER</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TOTAL BETS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">PAYOUTS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">COMMISSION</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">PALAWAN</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">SALARY</th>
+        <tr style="height:18px;font-size:10px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">OUTLETS:</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TELLER</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TOTAL BETS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">PAYOUTS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">COMMISSION</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">PALAWAN</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">SALARY</th>
         </tr>
       </thead>
       <tbody>`;
@@ -466,59 +511,72 @@ function buildAreaTableHtmlDDN(snap,col){
     const isOff=!!o.off;
     const color=isOff?"#ff0000":"#000000";
     const bold=isOff?"font-weight:bold;":"";
-    const sc=`border:1px solid #bfbfbf;padding:3px 5px;color:${color};${bold}`;
+    const sc=`border:1px solid #bfbfbf;padding:0 3px;color:${color};${bold};overflow:hidden;white-space:nowrap;`;
     const outletText=o.code+" "+(o.address||"");
-    const betsVal=o.bets>0?money(o.bets):"0.00";
-    const payVal=o.pay>0?"₱ "+money(o.pay):(isOff?"—":"₱ 0.00");
-    const commVal=o.comm>0?"₱ "+money(o.comm):(isOff?"—":"₱ 0.00");
-    const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
-    const salVal=o.sal>0?money(o.sal):"0";
-    h+=`<tr style="height:22px;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
+    const betsVal=isOff?"0.00":(o.bets>0?money(o.bets):"0.00");
+    const payVal=isOff?"-":(o.pay>0?money(o.pay):"-");
+    const commVal=isOff?"-":(o.comm>0?money(o.comm):"-");
+    const palVal=isOff?"-":(o.pal!==0?money(o.pal):"-");
+    const salVal=isOff?"0":(o.sal>0?money(o.sal):"0.00");
+    h+=`<tr style="height:13px;max-height:13px;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
       <td style="${sc}text-align:left;">${esc(outletText)}</td>
       <td style="${sc}text-align:left;">${esc(o.teller||"")}</td>
-      <td style="${sc}text-align:right;">${betsVal}</td>
-      <td style="${sc}text-align:right;">${payVal}</td>
-      <td style="${sc}text-align:right;">${commVal}</td>
-      <td style="${sc}text-align:right;">${palVal}</td>
-      <td style="${sc}text-align:right;">${salVal}</td>
+      <td style="${sc}text-align:right;"><span style="float:left">P</span>${betsVal}</td>
+      <td style="${sc}text-align:right;"><span style="float:left">P</span>${payVal}</td>
+      <td style="${sc}text-align:right;"><span style="float:left">P</span>${commVal}</td>
+      <td style="${sc}text-align:right;"><span style="float:left">P</span>${palVal}</td>
+      <td style="${sc}text-align:right;"><span style="float:left">P</span>${salVal}</td>
     </tr>`;
   });
   let curRow=3+os.length;
-  h+=`<tr style="height:22px;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">COLLECTOR</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">${esc(col)}</td>
+  h+=`<tr style="height:13px;max-height:13px;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;font-weight:bold;text-align:left;">COLLECTOR</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;font-weight:bold;text-align:left;">${esc(col)}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;font-weight:bold;">₱ 500.00</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>500.00</td>
     </tr>
-    <tr style="height:26px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
+    <tr style="height:14px;font-weight:bold;line-height:14px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL</td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumPay)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumPal)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumSal+500)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumBets)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumPay)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumComm)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumPal)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumSal+500)}</td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:13px;font-weight:bold;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="4" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">COMMISSION</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumComm)}</td>
       <td style="border:none;"></td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:13px;font-weight:bold;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="4" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets-sumPay)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL GROSS</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumBets-sumPay)}</td>
       <td style="border:none;"></td>
-    </tr></tbody></table>`;
+    </tr>`;
+  while(curRow <= 26){
+    h+=`<tr style="height:13px;max-height:13px;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+    </tr>`;
+  }
+  h+=`</tbody></table>`;
   h+=buildExcelTabBar("DDN", col + " NEW AREA", snap.date);
   h+=`</div>`;
   return h;
@@ -526,54 +584,55 @@ function buildAreaTableHtmlDDN(snap,col){
 
 function buildAreaTableHtmlSamal(snap,col){
   const A=snap.areas.SAMAL,os=A.outlets.filter(o=>o.collector===col);
+  const otherCol=A.collectors.filter(c=>c!==col)[0]||"";
   const dateStr=dmy(snap.date);
   const sumBets=os.reduce((s,x)=>s+x.bets,0),sumPay=os.reduce((s,x)=>s+x.pay,0),sumComm=sumBets*0.125,sumPal=sumBets-sumPay-sumComm,sumSal=os.reduce((s,x)=>s+x.sal,0);
-  let h=`<div style="background:#ffffff;padding:8px;width:1420px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
-    <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
+  let h=`<div style="background:#ffffff;width:1024px;height:442px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;font-family:Calibri,Arial,sans-serif;margin:0;padding:0;">
+    <table style="border-collapse:collapse;width:1024px;font-size:10px;color:#000000;table-layout:fixed;margin:0;padding:0;">
       <colgroup>
-        <col style="width:38px">
-        <col style="width:45px">
-        <col style="width:120px">
-        <col style="width:380px">
+        <col style="width:24px">
+        <col style="width:32px">
+        <col style="width:94px">
         <col style="width:260px">
-        <col style="width:120px">
-        <col style="width:115px">
-        <col style="width:120px">
-        <col style="width:125px">
-        <col style="width:97px">
+        <col style="width:180px">
+        <col style="width:95px">
+        <col style="width:80px">
+        <col style="width:90px">
+        <col style="width:95px">
+        <col style="width:74px">
       </colgroup>
       <thead>
-        <tr style="height:20px;">
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
-          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
+        <tr style="height:18px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:18px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
         </tr>
-        <tr style="height:36px;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
+        <tr style="height:28px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
-          <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:22px;font-weight:bold;text-align:center;">DATE</th>
-          <th style="border:1px solid #bfbfbf;background:#a5c9ec;font-size:20px;font-weight:bold;text-align:center;">${esc(dateStr)}</th>
-          <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:20px;font-weight:bold;text-align:center;">SAMAL</th>
+          <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:14px;font-weight:bold;text-align:center;color:#000000;">DATE</th>
+          <th style="border:1px solid #bfbfbf;background:#a5c9ec;font-size:14px;font-weight:bold;text-align:center;color:#000000;">${esc(dateStr)}</th>
+          <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:15px;font-weight:bold;text-align:center;color:#000000;">SAMAL</th>
         </tr>
-        <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
-          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">NO.</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">BOOTH CODE</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">ADDRESS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TELLER</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">TOTAL BETS</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">PAY OUT</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">COMMISSION</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">PALAWAN</th>
-          <th style="border:1px solid #bfbfbf;background:#ffffff;">SALARY</th>
+        <tr style="height:18px;font-size:10px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">NO.</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">BOOTH CODE</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">ADDRESS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TELLER</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">TOTAL BETS</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">PAY OUT</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">COMMISSION</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">PALAWAN</th>
+          <th style="border:1px solid #808080;background:#ffffff;color:#000000;">SALARY</th>
         </tr>
       </thead>
       <tbody>`;
@@ -581,14 +640,14 @@ function buildAreaTableHtmlSamal(snap,col){
     const isOff=!!o.off;
     const color=isOff?"#ff0000":"#000000";
     const bold=isOff?"font-weight:bold;":"";
-    const sc=`border:1px solid #bfbfbf;padding:3px 5px;color:${color};${bold}`;
-    const betsVal=o.bets>0?money(o.bets):"0.00";
-    const payVal=o.pay>0?"₱ "+money(o.pay):(isOff?"—":"₱ 0.00");
-    const commVal=o.comm>0?"₱ "+money(o.comm):(isOff?"—":"₱ 0.00");
-    const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
-    const salVal=o.sal>0?money(o.sal):"0";
-    h+=`<tr style="height:22px;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
+    const sc=`border:1px solid #bfbfbf;padding:0 3px;color:${color};${bold};overflow:hidden;white-space:nowrap;`;
+    const betsVal=isOff?"0.00 P":(o.bets>0?money(o.bets)+" P":"0.00 P");
+    const payVal=isOff?"-":(o.pay>0?money(o.pay)+" P":"-");
+    const commVal=isOff?`<span style="float:left">P</span>-`:(o.comm>0?`<span style="float:left">P</span>${money(o.comm)} P`:`<span style="float:left">P</span>-`);
+    const palVal=isOff?`<span style="float:left">P</span>-`:(o.pal!==0?`<span style="float:left">P</span>${money(o.pal)} P`:`<span style="float:left">P</span>-`);
+    const salVal=isOff?"0":(o.sal>0?money(o.sal):"0.00");
+    h+=`<tr style="height:12.5px;max-height:12.5px;line-height:12.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
       <td style="${sc}text-align:center;">${idx+1}</td>
       <td style="${sc}text-align:center;font-weight:bold;">${esc(o.code)}</td>
       <td style="${sc}text-align:left;">${esc(o.address||"")}</td>
@@ -601,44 +660,59 @@ function buildAreaTableHtmlSamal(snap,col){
     </tr>`;
   });
   let curRow=3+os.length;
-  h+=`<tr style="height:22px;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+  h+=`<tr style="height:12.5px;max-height:12.5px;line-height:12.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">${esc(col)}</td>
-      <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">500.00</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;font-weight:bold;text-align:left;">${esc(otherCol)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">0.00 P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:center;">-</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>-</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>-</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">500.00 P</td>
     </tr>
-    <tr style="height:26px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:14px;font-weight:bold;line-height:14px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL</td>
       <td style="border:1px solid #bfbfbf;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumPay)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumPal)}</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumSal+500)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumBets)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;">${money(sumPay)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumComm)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumPal)} P</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumSal+500)} P</td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:13px;font-weight:bold;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">COMMISSION</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumComm)}</td>
       <td style="border:none;"></td>
     </tr>
-    <tr style="height:24px;font-weight:bold;">
-      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+    <tr style="height:13px;font-weight:bold;line-height:13px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
-      <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets-sumPay)}</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:left;">TOTAL GROSS</td>
+      <td style="border:1px solid #bfbfbf;padding:0 3px;text-align:right;"><span style="float:left">P</span>${money(sumBets-sumPay)}</td>
       <td style="border:none;"></td>
-    </tr></tbody></table>`;
+    </tr>`;
+  while(curRow <= 26){
+    h+=`<tr style="height:12.5px;max-height:12.5px;line-height:12.5px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:9.5px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+      <td style="border:1px solid #bfbfbf;"></td>
+    </tr>`;
+  }
+  h+=`</tbody></table>`;
   h+=buildExcelTabBar("SAMAL", col + " AREA", snap.date);
   h+=`</div>`;
   return h;
@@ -710,15 +784,32 @@ function showReport(v,snap,adm){
         const it=items[i];
         pMsg.textContent=`Rendering ${it.name} (${i+1}/${total})…`;sStat.textContent=`Rendering (${i+1}/${total})`;
         pBar.style.width=Math.round((i/total)*100)+"%";
-        let html="",renderWidth=1440;
-        if(it.type==="sheet1"){html=buildSheet1ChunkHtml(snap,T.area,it.chunk.start,it.chunk.end,it.chunk.isLast);renderWidth=1440}
-        else if(T.area==="DDN"){html=buildAreaTableHtmlDDN(snap,it.col);renderWidth=1360}
-        else{html=buildAreaTableHtmlSamal(snap,it.col);renderWidth=1440}
+        let html="",renderWidth=1024,renderHeight=453;
+        if(it.type==="sheet1"){
+          renderHeight=T.area==="SAMAL"?435:453;
+          html=buildSheet1ChunkHtml(snap,T.area,it.chunk.start,it.chunk.end,it.chunk.isLast);
+        }else if(T.area==="DDN"){
+          renderHeight=442;
+          html=buildAreaTableHtmlDDN(snap,it.col);
+        }else{
+          renderHeight=434;
+          html=buildAreaTableHtmlSamal(snap,it.col);
+        }
         const stage=document.createElement("div");
-        stage.style.position="fixed";stage.style.left="-99999px";stage.style.top="0px";stage.style.width=renderWidth+"px";stage.style.backgroundColor="#ffffff";stage.style.zIndex="-9999";
+        stage.style.position="fixed";stage.style.left="-99999px";stage.style.top="0px";
+        stage.style.width=renderWidth+"px";stage.style.height=renderHeight+"px";stage.style.overflow="hidden";
+        stage.style.backgroundColor="#ffffff";stage.style.zIndex="-9999";
         stage.innerHTML=html;document.body.appendChild(stage);
         await new Promise(r=>setTimeout(r,60));
-        const canvas=await html2canvas(stage,{scale:2,backgroundColor:"#ffffff",logging:false,windowWidth:renderWidth+100});
+        const canvas=await html2canvas(stage,{
+          scale:1,
+          backgroundColor:"#ffffff",
+          logging:false,
+          width:renderWidth,
+          height:renderHeight,
+          windowWidth:renderWidth,
+          windowHeight:renderHeight
+        });
         document.body.removeChild(stage);
         const dataUrl=canvas.toDataURL("image/png");
         const blob=await new Promise(r=>canvas.toBlob(r,"image/png"));
@@ -726,8 +817,8 @@ function showReport(v,snap,adm){
         const card=document.createElement("div");
         card.className="box";card.style.margin="0";card.style.padding="10px";card.style.display="flex";card.style.flexDirection="column";card.style.gap="8px";
         card.innerHTML=`<div style="font-weight:bold;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.name)}">${esc(it.name)}</div>
-          <div style="background:#000;border:1px solid var(--line);border-radius:6px;overflow:hidden;cursor:pointer;height:160px;display:flex;align-items:center;justify-content:center" class="thumb-wrap">
-            <img src="${dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain" alt="${esc(it.name)}">
+          <div style="background:#0f172a;border:1px solid var(--line);border-radius:6px;overflow:hidden;cursor:pointer;height:140px;display:flex;align-items:center;justify-content:center" class="thumb-wrap" title="Click to view full image">
+            <img src="${dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.4)" alt="${esc(it.name)}">
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             <span style="font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(it.filename)}</span>
