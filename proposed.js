@@ -134,8 +134,8 @@ function render(v){
     <option value="">All remarks</option>
     ${REMARKS_LIST.map(r=>`<option value="${r}"${r===PL.filterRemarks?" selected":""}>${r}</option>`).join("")}
   </select>
-  <input id="pl-fm" placeholder="Municipality filter\u2026" value="${esc(PL.filterMuni)}" style="min-width:140px;max-width:200px">
-  <input id="pl-fb" placeholder="Booth code filter\u2026" value="${esc(PL.filterBoothCode)}" style="min-width:120px;max-width:180px">
+  <input id="pl-fm" placeholder="Municipality filter\u2026" value="${esc(PL.filterMuni)}" style="min-width:140px;flex:1">
+  <input id="pl-fb" placeholder="Booth code filter\u2026" value="${esc(PL.filterBoothCode)}" style="min-width:130px;flex:1">
 </div>
 <div class="tbar" style="margin-top:-6px">
   <label style="font-size:12px;color:var(--mu);display:flex;align-items:center;gap:6px;white-space:nowrap">Submitted from <input type="date" id="pl-df" value="${PL.filterDateFrom}" style="width:140px;padding:6px 8px"></label>

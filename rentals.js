@@ -295,23 +295,23 @@ function renderList(v) {
     </div>
   </div>
 
-  <div class="kpis" style="margin:0">
-    <div class="kpi ${R.kpiFilter === 'paid' ? 'on' : ''}" id="kpi-paid" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'paid' ? '#22c55e' : 'transparent'};border-radius:10px;padding:10px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0;width:100%">
+    <div class="kpi ${R.kpiFilter === 'paid' ? 'on' : ''}" id="kpi-paid" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'paid' ? '#22c55e' : 'transparent'};border-radius:10px;padding:12px 14px">
       <small style="color:#22c55e">✓ PAID BOOTHS</small>
       <b style="color:#22c55e">${countPaid}</b>
       <small style="color:var(--mu)">Click to filter</small>
     </div>
-    <div class="kpi ${R.kpiFilter === 'pending' ? 'on' : ''}" id="kpi-pending" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'pending' ? '#e0b13a' : 'transparent'};border-radius:10px;padding:10px">
+    <div class="kpi ${R.kpiFilter === 'pending' ? 'on' : ''}" id="kpi-pending" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'pending' ? '#e0b13a' : 'transparent'};border-radius:10px;padding:12px 14px">
       <small style="color:#e0b13a">⏳ PENDING BOOTHS</small>
       <b style="color:#e0b13a">${countPending}</b>
       <small style="color:var(--mu)">Click to filter</small>
     </div>
-    <div class="kpi ${R.kpiFilter === 'overdue' ? 'on' : ''}" id="kpi-overdue" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'overdue' ? '#ef4444' : 'transparent'};border-radius:10px;padding:10px">
+    <div class="kpi ${R.kpiFilter === 'overdue' ? 'on' : ''}" id="kpi-overdue" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'overdue' ? '#ef4444' : 'transparent'};border-radius:10px;padding:12px 14px">
       <small style="color:#ef4444">⚠️ OVERDUE BOOTHS</small>
       <b style="color:#ef4444">${countOverdue}</b>
       <small style="color:var(--mu)">Click to filter</small>
     </div>
-    <div class="kpi ${R.kpiFilter === 'collected' ? 'on' : ''}" id="kpi-collected" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'collected' ? 'var(--gold)' : 'transparent'};border-radius:10px;padding:10px">
+    <div class="kpi ${R.kpiFilter === 'collected' ? 'on' : ''}" id="kpi-collected" style="cursor:pointer;border:1px solid ${R.kpiFilter === 'collected' ? 'var(--gold)' : 'transparent'};border-radius:10px;padding:12px 14px">
       <small style="color:var(--gold)">💰 TOTAL COLLECTED</small>
       <b style="color:var(--gold)">${money(totalCollected)}</b>
       <small style="color:var(--mu)">Click to filter</small>
@@ -603,7 +603,7 @@ async function renderDetail(v) {
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;width:100%">
     ${monthsHtml}
   </div>
 </div>
@@ -1230,7 +1230,7 @@ function renderInventory(v) {
 </div>
 
 <!-- INVENTORY DASHBOARD SUMMARY CARDS -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px;width:100%">
   <!-- CARD A: ACTIVE -->
   <div class="box" style="margin:0;background:var(--panel);border:1px solid #22c55e;border-radius:14px;padding:18px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">

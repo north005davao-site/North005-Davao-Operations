@@ -91,9 +91,61 @@ async function go(n){const v0=$("#view");if(lastMod!==n)v0.dataset.mod="";lastMo
   v.innerHTML=`<div class="empty"><b>${esc(n)}</b><br>No records yet. This module is empty and ready to be configured.</div>`}
 
 function acct(v){
-  v.innerHTML=`<div class="box"><div class="avwrap"><div class="avl" id="avl" tabindex="0" title="Click, drop an image, or press Ctrl+V to paste"></div><div><button class="ghost" id="avu">Upload photo</button> <button class="ghost" id="avr">Remove photo</button><div class="chip" style="margin-top:8px">JPG, PNG or WEBP. Click the photo, drop an image on it, or paste with Ctrl+V. This is also your picture on the Organizational Chart.</div><div class="msg" id="avm" style="min-height:18px;color:var(--gold);text-align:left"></div></div></div>
-  <label>Full name</label><input id="an" value="${esc(me.full_name)}"><label>Username</label><input value="${esc(me.username)}" disabled><label>Role</label><input value="${esc(ROLES[me.role])}" disabled>
-  <label>New password (leave blank to keep)</label><input id="ap" type="password" autocomplete="new-password"><button class="btn" id="as">Save changes</button><div class="msg" id="am" style="color:var(--gold)"></div></div>`;
+  v.innerHTML=`<div class="split-2col">
+    <div class="box" style="text-align:center;padding:24px 20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:14px;color:#fff">Profile Photo</div>
+      <div style="display:flex;justify-content:center;margin-bottom:14px">
+        <div class="avl" id="avl" tabindex="0" title="Click, drop an image, or press Ctrl+V to paste" style="width:130px;height:160px;margin:0 auto"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">
+        <button class="ghost" id="avu" style="font-size:13px;padding:7px 14px">Upload photo</button>
+        <button class="ghost" id="avr" style="font-size:13px;padding:7px 14px">Remove</button>
+      </div>
+      <div class="chip" style="font-size:11.5px;line-height:1.4">JPG, PNG, or WEBP. Click photo, drop image, or paste with <b>Ctrl + V</b>. Also shown on the Organizational Chart.</div>
+      <div class="msg" id="avm" style="min-height:18px;color:var(--gold);margin-top:8px"></div>
+      <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px;text-align:left">
+        <div style="font-size:11.5px;color:var(--mu);letter-spacing:.5px">ACCOUNT STATUS</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <b style="color:#fff">${esc(me.full_name)}</b>
+          <span class="pill" style="background:#22c55e">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="box" style="padding:24px 22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:#fff">Account Details &amp; Security</div>
+          <div class="chip">Manage your personal information and account credentials</div>
+        </div>
+        <span class="pill" style="background:var(--gold);color:#1a1300">${esc(ROLES[me.role])}</span>
+      </div>
+
+      <div class="form-grid-2">
+        <div>
+          <label>Full name</label>
+          <input id="an" value="${esc(me.full_name)}" placeholder="Your full name" style="width:100%">
+        </div>
+        <div>
+          <label>Username</label>
+          <input value="${esc(me.username)}" disabled style="width:100%;opacity:.75">
+        </div>
+        <div>
+          <label>System Role</label>
+          <input value="${esc(ROLES[me.role])}" disabled style="width:100%;opacity:.75">
+        </div>
+        <div>
+          <label>New password <span class="chip">(leave blank to keep current)</span></label>
+          <input id="ap" type="password" autocomplete="new-password" placeholder="At least 8 characters" style="width:100%">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-top:20px;border-top:1px solid var(--line);padding-top:16px">
+        <button class="btn" id="as" style="width:auto;padding:10px 24px;margin:0">Save changes</button>
+        <div class="msg" id="am" style="color:var(--gold);font-weight:600"></div>
+      </div>
+    </div>
+  </div>`;
   const paint=async()=>{const el=$("#avl");if(!el)return;el.style.backgroundImage="";el.textContent=ini(me.full_name);if(me.photo_path){const u=await PHOTO.signed(me.photo_path);if(u&&$("#avl")){$("#avl").style.backgroundImage=`url('${u}')`;$("#avl").textContent=""}}};paint();
   const up=async f=>{const m=$("#avm");if(!f||!/^image\//.test(f.type)){if(m)m.textContent="Please choose an image file.";return}if(f.size>20*1048576){m.textContent="That image is too large (max 20 MB).";return}
     m.style.color="var(--gold)";m.textContent="Uploading…";try{me.photo_path=await PHOTO.uploadProfile(me.id,f);m.textContent="Photo updated.";paint();hdrAvatar()}catch(e){m.style.color="#ff8b9b";m.textContent="Could not upload the photo."}};
@@ -129,8 +181,20 @@ async function users(v){
     v.querySelectorAll("[data-d]").forEach(e=>e.onclick=async()=>{if(!confirm("Permanently remove "+e.dataset.pn+"?"))return;const r=await sb.rpc("admin_delete_user",{target:e.dataset.d});if(r.error)alert(r.error.message)})};
   draw()}
 
-function backup(v){v.innerHTML=`<div class="box"><p>All data lives in your Supabase database and is shared by every user and device. Use this for an offline copy.</p><button class="btn" id="bd">Download backup</button>
-<label>Restore from backup file (updates names, roles and status of existing accounts)</label><input type="file" id="rf" accept=".json"><div class="msg" id="bm" style="color:var(--gold)"></div></div>`;
+function backup(v){v.innerHTML=`<div class="split-half">
+  <div class="box">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">📥 Download Offline Backup</div>
+    <p style="color:var(--mu);font-size:13.5px;line-height:1.5;margin-bottom:16px">All data lives in your Supabase database and is shared by every user and device. Use this to download an offline JSON copy of accounts and roles.</p>
+    <button class="btn" id="bd" style="width:auto;padding:10px 22px">Download backup</button>
+    <div class="msg" id="bm" style="color:var(--gold);margin-top:10px"></div>
+  </div>
+  <div class="box">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">📤 Restore from Backup File</div>
+    <p style="color:var(--mu);font-size:13.5px;line-height:1.5;margin-bottom:14px">Restore from a backup JSON file (updates names, roles, and status of existing accounts).</p>
+    <label style="margin-bottom:6px">Select JSON file</label>
+    <input type="file" id="rf" accept=".json" style="width:100%">
+  </div>
+</div>`;
   $("#bd").onclick=async()=>{const r=await sb.from("profiles").select("username,full_name,role,status,created_at");if(r.error)return $("#bm").textContent="Backup failed.";
     const at=new Date().toISOString(),a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({app:"north005",at,profiles:r.data},null,1)],{type:"application/json"}));a.download="north005-backup-"+at.slice(0,10)+".json";a.click();$("#bm").textContent="Backup downloaded."};
   $("#rf").onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(j.app!="north005")throw 0;let n=0;

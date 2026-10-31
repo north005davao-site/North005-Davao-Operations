@@ -19,12 +19,20 @@ async function mine(v){
   const{data}=await sb.from("attendance").select("*").order("work_date",{ascending:false}).range(0,399);const rows=data||[],t0=rows.find(r=>r.work_date==td);
   const rel=me.role=="reliever";let booths=[];
   if(rel&&!t0){const r=await sb.rpc("booth_options");booths=r.data||[]}
-  const state=!t0?"out":t0.time_out?"done":"in";
-  v.innerHTML=`<div class="box" style="max-width:520px;margin:0 auto 16px;text-align:center"><div class="chip">${fdate(td)}</div><div id="clk" style="font-size:38px;font-weight:700;margin:6px 0">--:--</div>
-  <div style="margin-bottom:12px">${state=="out"?"You have not timed in yet.":state=="in"?`Timed in at <b>${tm(t0.time_in)}</b>${t0.booth_code?" · Booth <b>"+esc(t0.booth_code)+"</b>":""}`:`Done for today · ${tm(t0.time_in)} – ${tm(t0.time_out)} (${hrs(t0.time_in,t0.time_out)})`}</div>
-  ${state=="out"&&rel?`<label style="text-align:left">Booth you are covering today</label><input id="bth" list="bl3" placeholder="Type or pick a booth code" style="margin-bottom:8px"><datalist id="bl3">${booths.map(b=>`<option value="${esc(b.booth_code)}">${esc(b.sr_name||"")}</option>`).join("")}</datalist>`:""}
-  ${state!="done"?`<button class="btn" id="ab" style="font-size:17px;padding:14px;margin-top:4px">${state=="out"?"Time In":"Time Out"}</button>`:""}<div class="msg" id="am2" style="min-height:20px"></div></div>
-  <h4 class="h">My attendance</h4><div id="ah"></div>`;
+  v.innerHTML=`<div class="split-2col" style="grid-template-columns:minmax(320px, 380px) 1fr;gap:20px;align-items:start">
+    <div class="box" style="text-align:center;padding:24px 20px">
+      <div class="chip">${fdate(td)}</div>
+      <div id="clk" style="font-size:42px;font-weight:700;margin:8px 0;letter-spacing:1px">--:--</div>
+      <div style="margin-bottom:14px;font-size:14px">${state=="out"?"You have not timed in yet.":state=="in"?`Timed in at <b>${tm(t0.time_in)}</b>${t0.booth_code?" · Booth <b>"+esc(t0.booth_code)+"</b>":""}`:`Done for today · ${tm(t0.time_in)} – ${tm(t0.time_out)} (${hrs(t0.time_in,t0.time_out)})`}</div>
+      ${state=="out"&&rel?`<label style="text-align:left">Booth you are covering today</label><input id="bth" list="bl3" placeholder="Type or pick a booth code" style="margin-bottom:8px"><datalist id="bl3">${booths.map(b=>`<option value="${esc(b.booth_code)}">${esc(b.sr_name||"")}</option>`).join("")}</datalist>`:""}
+      ${state!="done"?`<button class="btn" id="ab" style="font-size:17px;padding:14px;margin-top:6px;width:100%">${state=="out"?"Time In":"Time Out"}</button>`:""}
+      <div class="msg" id="am2" style="min-height:20px;margin-top:6px"></div>
+    </div>
+    <div>
+      <h4 class="h" style="margin-top:0">My Attendance History</h4>
+      <div id="ah"></div>
+    </div>
+  </div>`;
   const clk=()=>{$("#clk")&&($("#clk").textContent=new Date().toLocaleTimeString("en-PH",{timeZone:TZ,hour:"numeric",minute:"2-digit",second:"2-digit"}))};clk();A.tick=setInterval(()=>{if(cur!=NAME||!$("#clk"))return clearInterval(A.tick);clk()},1000);
   if($("#ab"))$("#ab").onclick=async()=>{const b=$("#ab"),m=$("#am2");let booth=null;
     if(state=="out"&&rel){booth=$("#bth").value.trim().toUpperCase();if(!booths.some(x=>x.booth_code==booth))return m.textContent=ERR.BOOTH_REQUIRED}

@@ -50,10 +50,26 @@ async function detail(v){
   if(!C.m){const base=pays.length?pays[pays.length-1].paid_on:iso(new Date()),today=iso(new Date());C.m=(rem>0&&today>=r.taken_on?today:base>=r.taken_on?base:r.taken_on).slice(0,7)}
   v.innerHTML=`<div class="tbar"><button class="ghost" id="bk2">← Back to list</button><b style="font-size:16px">${esc(r.collector_name)}</b>${pill(r)}<span class="chip">Taken ${fd(r.taken_on)}</span>${adm?'<button class="ghost" id="ed" style="margin-left:auto">Edit</button><button class="ghost" id="dl">Delete</button>':""}</div>
   ${r.note?`<div class="chip" style="margin:-4px 0 10px">Note: ${esc(r.note)}</div>`:""}
-  <div class="kpis"><div class="kpi"><small>Cash advance</small><b>${money(amt)}</b></div><div class="kpi"><small>Total paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(rem)}</b></div></div>
-  <div class="prog" style="margin:12px 0"><i style="width:${Math.min(100,paid/amt*100)}%"></i></div>
-  <div class="box" style="max-width:none"><div class="tbar" style="margin-bottom:8px"><button class="chip2" id="pm">‹</button><b id="mt" style="min-width:150px;text-align:center"></b><button class="chip2" id="nm2">›</button><span class="chip" id="ms"></span>${adm?'<span class="chip">Click a day to record a payment</span>':""}</div><div id="cal"></div></div>
-  <h4 class="h">Payments</h4><div id="pl"></div>`;
+  <div class="kpis" style="margin-bottom:14px"><div class="kpi"><small>Cash advance</small><b>${money(amt)}</b></div><div class="kpi"><small>Total paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(rem)}</b></div></div>
+  <div class="prog" style="margin:0 0 18px"><i style="width:${Math.min(100,paid/amt*100)}%"></i></div>
+  <div class="split-2col" style="grid-template-columns:minmax(320px, 1fr) minmax(420px, 1.4fr);gap:18px">
+    <div>
+      <h4 class="h" style="margin-top:0">Payments History</h4>
+      <div id="pl"></div>
+    </div>
+    <div>
+      <div class="box" style="margin:0">
+        <div class="tbar" style="margin-bottom:8px">
+          <button class="chip2" id="pm">‹</button>
+          <b id="mt" style="min-width:150px;text-align:center"></b>
+          <button class="chip2" id="nm2">›</button>
+          <span class="chip" id="ms"></span>
+          ${adm?'<span class="chip">Click a day to record a payment</span>':""}
+        </div>
+        <div id="cal"></div>
+      </div>
+    </div>
+  </div>`;
   $("#bk2").onclick=()=>{C.view="list";C.id=null;go(cur)};
   if(adm){$("#ed").onclick=()=>editCA(r,()=>detail(v));$("#dl").onclick=async()=>{if(!confirm("Delete this cash advance and all its payments?"))return;const{error}=await sb.from("cash_advances").delete().eq("id",r.id);if(error)return alert("Could not delete.");C.view="list";C.id=null;go(cur)}}
   const map=new Map(pays.map(p=>[p.paid_on,p]));
