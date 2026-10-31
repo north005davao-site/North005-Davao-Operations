@@ -1,6 +1,15 @@
 (()=>{
+const esc=window.esc||(s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])));
 const SV={DDN:["PETER JOHN CARRILLO"],SAMAL:["PETER JOHN CARRILLO"]};
-const CC={JOHN:["FFFF0000","FFFF0000"],JAYSON:["FFE97132","FFE97132"],MUHLEN:["FF00B0F0","FF00B0F0"],JASON:["FF92D050","FF92D050"],"MAC²":["FFFFFF00","FFFFFF00"],NELSON:["FFFF0000","FFFF0000"],CHARLIE:["FF215F9A","FF215F9A"]},PAL=[["FFFFC000","FFFFC000"],["FF00B0F0","FF00B0F0"],["FF7030A0","FF7030A0"],["FFFF66CC","FFFF66CC"]],ccol=(n,i)=>CC[n]||PAL[i%PAL.length];
+const CC={
+  JOHN:    ["FFFF0000","FFBF0000"],
+  JAYSON:  ["FFE97132","FFE97132"],
+  MUHLEN:  ["FF3399FF","FF02A5E3"],
+  JASON:   ["FF92D050","FF92D04F"],
+  "MAC²":  ["FFFFFF00","FFFFC000"],
+  NELSON:  ["FFFFFF00","FFFF0000"],
+  CHARLIE: ["FFFFFF00","FF215F9A"]
+},PAL=[["FFFFC000","FFFFC000"],["FF00B0F0","FF00B0F0"],["FF7030A0","FF7030A0"],["FFFF66CC","FFFF66CC"]],ccol=(n,i)=>CC[n]||PAL[i%PAL.length];
 const ORDER_MAP={DDN:["JOHN","JAYSON","MUHLEN","JASON","MAC²"],SAMAL:["NELSON","CHARLIE"]};
 const sortCollectors=(list,area)=>{const order=ORDER_MAP[area]||[];return[...list].sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);if(ia!==-1&&ib!==-1)return ia-ib;if(ia!==-1)return -1;if(ib!==-1)return 1;return a.localeCompare(b)})};
 let OFF=false;
@@ -61,7 +70,7 @@ function put(ws,a,v,o={}){const c=ws.getCell(a);c.value=o.fx!==undefined?{formul
 function widths(ws,w){Object.entries(w).forEach(([k,v])=>ws.getColumn(k).width=v)}
 
 function sheet1(wb,snap,area,eod,L){
-  const A=snap.areas[area],ws=wb.addWorksheet("Sheet1",{properties:{tabColor:{argb:"FF22C55E"}}}),n=A.outlets.length,k=A.collectors.length,sam=area=="SAMAL";
+  const A=snap.areas[area],ws=wb.addWorksheet("Sheet1"),n=A.outlets.length,k=A.collectors.length,sam=area=="SAMAL";
   const first=3,last=2+n,cf=last+1,cl=last+k,tot=cl+1,cm=tot+1,gr=tot+2,t1=tot+8,t2=t1+56,rowOf={};
   put(ws,"C1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});put(ws,"D1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});ws.getRow(1).height=30;ws.getRow(2).height=20.25;
   put(ws,"E1",new Date(snap.date+"T00:00:00Z"),{font:FN(24,1),fmt:"d-mmm-yy",fill:"FFA5C9EC",al:"center"});
@@ -85,17 +94,18 @@ function sheet1(wb,snap,area,eod,L){
   put(ws,"H"+(t1-1),"SALARY TABLE",{font:FN(12,1)});put(ws,"I"+(t1-1),"(daily gross sales)",{font:FN(10)});put(ws,"J"+(t1-1),"SALARY",{font:FN(12,1)});
   for(let i=0;i<=56;i++){const r=t1+i,lo=i==0?100:5000+(i-1)*1000;put(ws,"H"+r,lo,{font:FN(11),fmt:"#,##0"});put(ws,"I"+r,i==0?4999:lo+999,{font:FN(11),fmt:"#,##0"});
     put(ws,"J"+r,i<2?(i?300:250):0,i<2?{font:FN(11),fmt:'"₱"#,##0'}:{fx:`J${r-1}+10`,res:300+10*(i-1),font:FN(11),fmt:'"₱"#,##0'})}
-  widths(ws,{A:5.1,B:19.3,C:68.4,D:63.2,E:48.6,F:27,G:22.7,H:27,I:25.7,J:22.3});
+  widths(ws, sam?{A:5.63,B:19.63,C:69.63,D:24.13,E:38.25,F:19.75,G:19.75,H:19.75,I:19.75,J:19.75}:{A:5.13,B:19.38,C:68.5,D:63.25,E:48.5,F:27,G:22.63,H:27,I:25.63,J:22.38});
   ws.getColumn(4).hidden=true;
   for(let r=t1-1;r<=t2;r++)ws.getRow(r).hidden=true;
   return{ws,rowOf,tot,cm,gr}}
 
 function areaSheetNarrow(wb,snap,area,col,S1,idx){
   const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" NEW AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31),{properties:{tabColor:{argb:ccol(col,idx)[1]}}});
+  ws.getRow(1).height=35.45;ws.getRow(2).height=22.5;
   put(ws,"A1","DATE",{font:FN(18,1),fill:"FFCC99FF",al:"center"});put(ws,"B1",0,{fx:"Sheet1!E1",res:ser(snap.date),fmt:"d-mmm-yy",font:FN(18,1),fill:"FF99CCFF",al:"center"});
   ws.mergeCells("C1:G1");put(ws,"C1",col,{font:FN(18,1,"FF36363D"),fill:ccol(col,idx)[0],al:"center"});
   ["OUTLETS","TELLER","TOTAL BETS","PAYOUTS","COMMISSION","PALAWAN","SALARY"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"2",h,{font:FN(12,1),al:"center"}));
-  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;
+  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;ws.getRow(r).height=18;
     put(ws,"A"+r,0,{fx:`Sheet1!D${s}`,res:o.code+" "+o.address,font:FN(11)});put(ws,"B"+r,0,{fx:`Sheet1!E${s}`,res:o.teller,font:FN(11)});
     put(ws,"C"+r,0,{fx:`Sheet1!F${s}`,res:o.bets,font:FN(14),fmt:PESO,al:"center"});put(ws,"D"+r,0,{fx:`Sheet1!G${s}`,res:o.pay,font:FN(14),fmt:PESO});
     put(ws,"E"+r,0,{fx:`C${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});put(ws,"F"+r,0,{fx:`C${r}-D${r}-E${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"G"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});OFF=false;
@@ -105,21 +115,21 @@ function areaSheetNarrow(wb,snap,area,col,S1,idx){
   [["C",bets],["D",pay],["E",comm],["F",bets-pay-comm]].forEach(([k,v])=>put(ws,k+t,0,{fx:`SUM(${k}3:${k}${e})`,res:v,font:FN(14,1),fmt:PESO}));put(ws,"G"+t,0,{fx:`SUM(G3:G${c})`,res:sum(0,"sal")+500,font:FN(14,1),fmt:PESO});
   put(ws,"E"+(t+1),"COMMISSION",{font:FN(11,1)});put(ws,"F"+(t+1),0,{fx:`E${t}`,res:comm,font:FN(14,1),fmt:PESO});
   put(ws,"E"+(t+2),"TOTAL GROSS",{font:FN(11,1)});put(ws,"F"+(t+2),0,{fx:`SUM(F${t},F${t+1})`,res:bets-pay,font:FN(14,1),fmt:PESO});
-  widths(ws,{A:65.1,B:30.2,C:22,D:19.7,E:20.9,F:22.3,G:20.9})}
+  widths(ws,{A:69.63,B:40.63,C:25,D:23.5,E:24.63,F:25.13,G:23.38})}
 
 function areaSheetWide(wb,snap,area,col,S1,idx){
   const A=snap.areas[area],os=A.outlets.filter(o=>o.collector==col),ws=wb.addWorksheet((col+" AREA").replace(/[:\\/?*\[\]]/g," ").slice(0,31),{properties:{tabColor:{argb:ccol(col,idx)[1]}}});
   put(ws,"C1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});put(ws,"D1","DATE",{font:FN(24,1),fill:"FFB4E5A2",al:"center"});ws.getRow(1).height=30;put(ws,"E1",0,{fx:"Sheet1!E1",res:ser(snap.date),font:FN(24,1),fmt:"d-mmm-yy",fill:"FFA5C9EC",al:"center"});
   ws.mergeCells("F1:J1");put(ws,"F1",col,{font:FN(22,1),fill:"FFFFFF00",al:"center"});
   ["NO.","BOOTH CODE","ADDRESS","OUTLETS","TELLER","TOTAL BETS","PAY OUT","COMMISSION","PALAWAN","SALARY"].forEach((h,i)=>put(ws,String.fromCharCode(65+i)+"2",h,{font:FN(14,1),al:"center"}));
-  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{});put(ws,"C"+r,o.address,{});put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address});put(ws,"E"+r,o.teller,{});
+  os.forEach((o,i)=>{const r=3+i,s=S1.rowOf[o.code];OFF=!!o.off;ws.getRow(r).height=18;put(ws,"A"+r,i+1,{font:FN(12,1),al:"center"});put(ws,"B"+r,o.code,{});put(ws,"C"+r,o.address,{});put(ws,"D"+r,0,{fx:`B${r}&" "&C${r}`,res:o.code+" "+o.address});put(ws,"E"+r,o.teller,{});
     put(ws,"F"+r,0,{fx:`Sheet1!F${s}`,res:o.bets,fmt:"#,##0.00",font:FN(11,1)});put(ws,"G"+r,0,{fx:`Sheet1!G${s}`,res:o.pay,font:FN(14),fmt:PESO});put(ws,"H"+r,0,{fx:`F${r}*0.125`,res:o.comm,font:FN(14),fmt:PESO});
     put(ws,"I"+r,0,{fx:`F${r}-G${r}-H${r}`,res:o.pal,font:FN(14),fmt:PESO});put(ws,"J"+r,0,{fx:`Sheet1!J${s}`,res:o.sal,font:FN(14),fmt:PESO})});OFF=false;
   const e=2+os.length,c=e+1,t=e+2,sum=f=>os.reduce((s,x)=>s+x[f],0),bets=sum("bets"),pay=sum("pay"),comm=bets*0.125;
   put(ws,"D"+c,"COLLECTOR",{font:FN(14)});put(ws,"E"+c,col,{font:FN(14)});put(ws,"J"+c,500,{font:FN(14),fmt:PESO});put(ws,"C"+t,"TOTAL",{font:FN(14,1)});put(ws,"D"+t,"TOTAL",{font:FN(14,1)});
   [["F",bets],["G",pay],["H",comm],["I",bets-pay-comm]].forEach(([k,v])=>put(ws,k+t,0,{fx:`SUM(${k}3:${k}${e})`,res:v,font:FN(14,1),fmt:PESO}));put(ws,"J"+t,0,{fx:`SUM(J3:J${c})`,res:sum("sal")+500,font:FN(14,1),fmt:PESO});
   put(ws,"H"+(t+1),"COMMISSION",{font:FN(14,1)});put(ws,"I"+(t+1),0,{fx:`H${t}`,res:comm,font:FN(14,1),fmt:PESO});put(ws,"H"+(t+2),"TOTAL GROSS",{font:FN(14,1)});put(ws,"I"+(t+2),0,{fx:`SUM(I${t},I${t+1})`,res:bets-pay,font:FN(14,1),fmt:PESO});
-  widths(ws,{A:5.1,B:19.3,C:68.4,D:63.2,E:48.6,F:27,G:22.7,H:27,I:25.7,J:22.3});
+  widths(ws,{A:5.63,B:19.63,C:69.63,D:24.13,E:38.25,F:19.75,G:19.75,H:19.75,I:19.75,J:19.75});
   ws.getColumn(4).hidden=true}
 
 function eodSheet(wb,snap,area,S1,eod){
@@ -219,14 +229,68 @@ function getSheet1Chunks(outlets,area){
   return chunks;
 }
 
+function buildExcelTabBar(area, activeSheetName, dateStr){
+  const longDateStr = longD(dateStr);
+  const eodName = ("EOD - " + longDateStr).slice(0, 31);
+  let tabs = [];
+  if(area === "SAMAL"){
+    tabs = [
+      { name: "Sheet1", color: null, textColor: "#333333" },
+      { name: "NELSON AREA", color: "#FF0000", textColor: "#ffffff" },
+      { name: "CHARLIE AREA", color: "#215F9A", textColor: "#ffffff" },
+      { name: eodName, color: null, textColor: "#333333" },
+      { name: "Low Sales", color: null, textColor: "#333333" }
+    ];
+  } else {
+    tabs = [
+      { name: "Sheet1", color: null, textColor: "#333333" },
+      { name: "JOHN NEW AREA", color: "#BF0000", textColor: "#ffffff" },
+      { name: "JAYSON NEW AREA", color: "#E97132", textColor: "#ffffff" },
+      { name: "MUHLEN NEW AREA", color: "#02A5E3", textColor: "#000000" },
+      { name: "JASON NEW AREA", color: "#92D04F", textColor: "#000000" },
+      { name: "MAC² NEW AREA", color: "#FFC000", textColor: "#000000" },
+      { name: eodName, color: null, textColor: "#333333" }
+    ];
+  }
+
+  const tabsHtml = tabs.map(tab => {
+    const isActive = tab.name.toUpperCase() === activeSheetName.toUpperCase();
+    if(isActive){
+      const underlineColor = tab.color || "#107c41";
+      const fontColor = (tab.color === "#FFC000" || tab.color === "#92D04F") ? "#107c41" : (tab.color || "#107c41");
+      return `<div style="background:#ffffff;border-top:1px solid #d4d4d4;border-left:1px solid #d4d4d4;border-right:1px solid #d4d4d4;border-bottom:3px solid ${underlineColor};padding:4px 14px 2px 14px;font-weight:bold;color:${fontColor};font-size:11px;border-radius:2px 2px 0 0;box-shadow:0 -1px 2px rgba(0,0,0,0.06);white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+    } else {
+      if(tab.color){
+        return `<div style="background:${tab.color};border:1px solid rgba(0,0,0,0.18);padding:4px 12px;font-weight:bold;color:${tab.textColor};font-size:11px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+      } else {
+        return `<div style="background:#f3f3f3;border:1px solid #d4d4d4;padding:4px 12px;font-weight:normal;color:#444444;font-size:11px;border-radius:2px 2px 0 0;white-space:nowrap;display:flex;align-items:center;">${esc(tab.name)}</div>`;
+      }
+    }
+  }).join("");
+
+  return `<div style="background:#f3f3f3;border-top:1px solid #c8c8c8;display:flex;align-items:center;height:30px;padding:0 8px;font-family:'Segoe UI',Calibri,Arial,sans-serif;user-select:none;box-sizing:border-box;margin-top:8px;">
+    <div style="display:flex;gap:4px;color:#595959;font-weight:bold;margin-right:10px;font-size:10px;">
+      <span>◀</span><span>▶</span>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:3px;height:100%;padding-top:2px;">
+      ${tabsHtml}
+    </div>
+    <div style="margin-left:8px;width:18px;height:18px;border-radius:50%;border:1px solid #b0b0b0;display:flex;align-items:center;justify-content:center;color:#555;font-size:12px;font-weight:bold;">+</div>
+    <div style="margin-left:auto;width:280px;height:10px;background:#e1e4e8;border-radius:5px;position:relative;">
+      <div style="position:absolute;left:24px;width:75px;height:100%;background:#b6bcc4;border-radius:5px;"></div>
+    </div>
+  </div>`;
+}
+
 function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
   const A=snap.areas[area],t=A.totals,sam=area==="SAMAL";
   const outletsSlice=A.outlets.slice(startIdx,endIdx);
   const dateStr=dmy(snap.date);
   const areaTitle=LABEL[area]||area;
-  let h=`<div style="background:#ffffff;padding:16px;width:1380px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
+  let h=`<div style="background:#ffffff;padding:8px;width:1420px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
     <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
       <colgroup>
+        <col style="width:38px">
         <col style="width:45px">
         <col style="width:120px">
         <col style="width:380px">
@@ -235,10 +299,23 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
         <col style="width:115px">
         <col style="width:120px">
         <col style="width:125px">
-        <col style="width:95px">
+        <col style="width:97px">
       </colgroup>
       <thead>
+        <tr style="height:20px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
+        </tr>
         <tr style="height:36px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:22px;font-weight:bold;text-align:center;">DATE</th>
@@ -246,6 +323,7 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
           <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:20px;font-weight:bold;text-align:center;">${esc(areaTitle)}</th>
         </tr>
         <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">NO.</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">BOOTH CODE</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">ADDRESS</th>
@@ -259,7 +337,7 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
       </thead>
       <tbody>`;
   outletsSlice.forEach((o,idx)=>{
-    const rowNum=startIdx+idx+1;
+    const excelRow=startIdx+idx+3;
     const isOff=!!o.off;
     const color=isOff?"#ff0000":"#000000";
     const bold=isOff?"font-weight:bold;":"";
@@ -270,7 +348,8 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
     const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
     const salVal=o.sal>0?money(o.sal):"0";
     h+=`<tr style="height:22px;">
-      <td style="${sc}text-align:center;">${rowNum}</td>
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${excelRow}</td>
+      <td style="${sc}text-align:center;">${startIdx+idx+1}</td>
       <td style="${sc}text-align:center;font-weight:bold;">${esc(o.code)}</td>
       <td style="${sc}text-align:left;">${esc(o.address||"")}</td>
       <td style="${sc}text-align:left;">${esc(o.teller||"")}</td>
@@ -282,8 +361,10 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
     </tr>`;
   });
   if(isLastChunk){
+    let curRow=startIdx+outletsSlice.length+3;
     A.collectors.forEach(c=>{
       h+=`<tr style="height:22px;">
+        <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
         <td style="border:1px solid #bfbfbf;"></td>
         <td style="border:1px solid #bfbfbf;"></td>
         <td style="border:1px solid #bfbfbf;"></td>
@@ -296,6 +377,7 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
       </tr>`;
     });
     h+=`<tr style="height:26px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
@@ -307,12 +389,14 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.sal)}</td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.comm)}</td>
       <td style="border:none;"></td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(t.gross)}</td>
@@ -327,6 +411,7 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
       <div style="font-family:'Courier New',Courier,monospace;font-size:18px;color:#02A5E3;font-weight:bold;font-style:italic;margin-top:4px;">SV: ${esc(svName)}</div>
     </div>`;
   }
+  h+=buildExcelTabBar(area, "Sheet1", snap.date);
   h+=`</div>`;
   return h;
 }
@@ -334,26 +419,39 @@ function buildSheet1ChunkHtml(snap,area,startIdx,endIdx,isLastChunk){
 function buildAreaTableHtmlDDN(snap,col){
   const A=snap.areas.DDN,os=A.outlets.filter(o=>o.collector===col);
   const dateStr=dmy(snap.date);
-  const colColor={JOHN:"#FF0000",JAYSON:"#E97132",MUHLEN:"#00B0F0",JASON:"#92D050","MAC²":"#FFFF00"}[col]||"#FF0000";
+  const colColor={JOHN:"#FF0000",JAYSON:"#E97132",MUHLEN:"#3399FF",JASON:"#92D050","MAC²":"#FFFF00"}[col]||"#FF0000";
   const sumBets=os.reduce((s,x)=>s+x.bets,0),sumPay=os.reduce((s,x)=>s+x.pay,0),sumComm=sumBets*0.125,sumPal=sumBets-sumPay-sumComm,sumSal=os.reduce((s,x)=>s+x.sal,0);
-  let h=`<div style="background:#ffffff;padding:16px;width:1300px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
+  let h=`<div style="background:#ffffff;padding:8px;width:1340px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
     <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
       <colgroup>
+        <col style="width:38px">
         <col style="width:430px">
         <col style="width:250px">
         <col style="width:125px">
         <col style="width:115px">
         <col style="width:125px">
         <col style="width:130px">
-        <col style="width:125px">
+        <col style="width:127px">
       </colgroup>
       <thead>
+        <tr style="height:20px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">D</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+        </tr>
         <tr style="height:36px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
           <th style="border:1px solid #bfbfbf;background:#CC99FF;font-size:18px;font-weight:bold;text-align:center;">DATE :</th>
           <th style="border:1px solid #bfbfbf;background:#99CCFF;font-size:18px;font-weight:bold;text-align:center;">${esc(dateStr)}</th>
           <th colspan="5" style="border:1px solid #bfbfbf;background:${colColor};font-size:20px;font-weight:bold;text-align:center;color:#000000;">${esc(col)}</th>
         </tr>
         <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">OUTLETS:</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">TELLER</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">TOTAL BETS</th>
@@ -364,7 +462,7 @@ function buildAreaTableHtmlDDN(snap,col){
         </tr>
       </thead>
       <tbody>`;
-  os.forEach(o=>{
+  os.forEach((o,idx)=>{
     const isOff=!!o.off;
     const color=isOff?"#ff0000":"#000000";
     const bold=isOff?"font-weight:bold;":"";
@@ -376,6 +474,7 @@ function buildAreaTableHtmlDDN(snap,col){
     const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
     const salVal=o.sal>0?money(o.sal):"0";
     h+=`<tr style="height:22px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
       <td style="${sc}text-align:left;">${esc(outletText)}</td>
       <td style="${sc}text-align:left;">${esc(o.teller||"")}</td>
       <td style="${sc}text-align:right;">${betsVal}</td>
@@ -385,7 +484,9 @@ function buildAreaTableHtmlDDN(snap,col){
       <td style="${sc}text-align:right;">${salVal}</td>
     </tr>`;
   });
+  let curRow=3+os.length;
   h+=`<tr style="height:22px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">COLLECTOR</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;font-weight:bold;text-align:left;">${esc(col)}</td>
       <td style="border:1px solid #bfbfbf;"></td>
@@ -395,6 +496,7 @@ function buildAreaTableHtmlDDN(snap,col){
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;font-weight:bold;">₱ 500.00</td>
     </tr>
     <tr style="height:26px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets)}</td>
@@ -404,17 +506,21 @@ function buildAreaTableHtmlDDN(snap,col){
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumSal+500)}</td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="4" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
       <td style="border:none;"></td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="4" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets-sumPay)}</td>
       <td style="border:none;"></td>
-    </tr></tbody></table></div>`;
+    </tr></tbody></table>`;
+  h+=buildExcelTabBar("DDN", col + " NEW AREA", snap.date);
+  h+=`</div>`;
   return h;
 }
 
@@ -422,9 +528,10 @@ function buildAreaTableHtmlSamal(snap,col){
   const A=snap.areas.SAMAL,os=A.outlets.filter(o=>o.collector===col);
   const dateStr=dmy(snap.date);
   const sumBets=os.reduce((s,x)=>s+x.bets,0),sumPay=os.reduce((s,x)=>s+x.pay,0),sumComm=sumBets*0.125,sumPal=sumBets-sumPay-sumComm,sumSal=os.reduce((s,x)=>s+x.sal,0);
-  let h=`<div style="background:#ffffff;padding:16px;width:1380px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
+  let h=`<div style="background:#ffffff;padding:8px;width:1420px;box-sizing:border-box;font-family:Calibri,Arial,sans-serif;">
     <table style="border-collapse:collapse;width:100%;font-size:11px;color:#000000;table-layout:fixed;">
       <colgroup>
+        <col style="width:38px">
         <col style="width:45px">
         <col style="width:120px">
         <col style="width:380px">
@@ -433,10 +540,23 @@ function buildAreaTableHtmlSamal(snap,col){
         <col style="width:115px">
         <col style="width:120px">
         <col style="width:125px">
-        <col style="width:95px">
+        <col style="width:97px">
       </colgroup>
       <thead>
+        <tr style="height:20px;">
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;height:20px;"></th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">A</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">B</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">C</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">E</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">F</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">G</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">H</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">I</th>
+          <th style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-weight:normal;text-align:center;">J</th>
+        </tr>
         <tr style="height:36px;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">1</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;"></th>
           <th style="border:1px solid #bfbfbf;background:#b4e5a2;font-size:22px;font-weight:bold;text-align:center;">DATE</th>
@@ -444,6 +564,7 @@ function buildAreaTableHtmlSamal(snap,col){
           <th colspan="5" style="border:1px solid #bfbfbf;background:#ffff00;font-size:20px;font-weight:bold;text-align:center;">SAMAL</th>
         </tr>
         <tr style="height:26px;font-size:12px;font-weight:bold;text-align:center;">
+          <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">2</td>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">NO.</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">BOOTH CODE</th>
           <th style="border:1px solid #bfbfbf;background:#ffffff;">ADDRESS</th>
@@ -467,6 +588,7 @@ function buildAreaTableHtmlSamal(snap,col){
     const palVal=o.pal!==0?"₱ "+money(o.pal):(isOff?"—":"₱ 0.00");
     const salVal=o.sal>0?money(o.sal):"0";
     h+=`<tr style="height:22px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${3+idx}</td>
       <td style="${sc}text-align:center;">${idx+1}</td>
       <td style="${sc}text-align:center;font-weight:bold;">${esc(o.code)}</td>
       <td style="${sc}text-align:left;">${esc(o.address||"")}</td>
@@ -478,7 +600,9 @@ function buildAreaTableHtmlSamal(snap,col){
       <td style="${sc}text-align:right;">${salVal}</td>
     </tr>`;
   });
+  let curRow=3+os.length;
   h+=`<tr style="height:22px;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
@@ -490,6 +614,7 @@ function buildAreaTableHtmlSamal(snap,col){
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">500.00</td>
     </tr>
     <tr style="height:26px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL</td>
@@ -501,17 +626,21 @@ function buildAreaTableHtmlSamal(snap,col){
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumSal+500)}</td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">COMMISSION</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumComm)}</td>
       <td style="border:none;"></td>
     </tr>
     <tr style="height:24px;font-weight:bold;">
+      <td style="border:1px solid #d4d4d4;background:#f2f2f2;color:#595959;font-size:11px;font-family:'Segoe UI',Calibri,Arial,sans-serif;text-align:center;">${curRow++}</td>
       <td colspan="6" style="border:none;"></td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:left;">TOTAL GROSS</td>
       <td style="border:1px solid #bfbfbf;padding:3px 5px;text-align:right;">₱ ${money(sumBets-sumPay)}</td>
       <td style="border:none;"></td>
-    </tr></tbody></table></div>`;
+    </tr></tbody></table>`;
+  h+=buildExcelTabBar("SAMAL", col + " AREA", snap.date);
+  h+=`</div>`;
   return h;
 }
 
@@ -581,10 +710,10 @@ function showReport(v,snap,adm){
         const it=items[i];
         pMsg.textContent=`Rendering ${it.name} (${i+1}/${total})…`;sStat.textContent=`Rendering (${i+1}/${total})`;
         pBar.style.width=Math.round((i/total)*100)+"%";
-        let html="",renderWidth=1400;
-        if(it.type==="sheet1"){html=buildSheet1ChunkHtml(snap,T.area,it.chunk.start,it.chunk.end,it.chunk.isLast);renderWidth=1400}
-        else if(T.area==="DDN"){html=buildAreaTableHtmlDDN(snap,it.col);renderWidth=1320}
-        else{html=buildAreaTableHtmlSamal(snap,it.col);renderWidth=1400}
+        let html="",renderWidth=1440;
+        if(it.type==="sheet1"){html=buildSheet1ChunkHtml(snap,T.area,it.chunk.start,it.chunk.end,it.chunk.isLast);renderWidth=1440}
+        else if(T.area==="DDN"){html=buildAreaTableHtmlDDN(snap,it.col);renderWidth=1360}
+        else{html=buildAreaTableHtmlSamal(snap,it.col);renderWidth=1440}
         const stage=document.createElement("div");
         stage.style.position="fixed";stage.style.left="-99999px";stage.style.top="0px";stage.style.width=renderWidth+"px";stage.style.backgroundColor="#ffffff";stage.style.zIndex="-9999";
         stage.innerHTML=html;document.body.appendChild(stage);
@@ -675,6 +804,6 @@ async function preview(v){
     const{error}=await sb.from("daily_reports").upsert({report_date:P.date,snapshot:snap,created_by:me.id},{onConflict:"report_date"});
     if(error){$("#sv").disabled=false;return $("#pm").textContent="Could not save."}T.date=P.date;T.busy=false;P=null;sales(v)}}
 
-window.SALES={parseAccounting,compute,buildXlsx,msgText,salary};
+window.SALES={parseAccounting,compute,buildXlsx,msgText,salary,buildSheet1ChunkHtml,buildAreaTableHtmlDDN,buildAreaTableHtmlSamal,buildExcelTabBar,CC};
 window.MODS=Object.assign(window.MODS||{},{"SALES & COLLECTION":sales});
 })();
