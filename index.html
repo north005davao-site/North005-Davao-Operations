@@ -70,11 +70,40 @@ dialog input,dialog select{background:var(--bg);color:var(--tx);border-color:var
 .msgbox{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;width:100%;box-sizing:border-box}
 .warn2{background:rgba(224,177,58,.14);border:1px solid var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13.5px;width:100%;box-sizing:border-box}
 .pg{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;width:100%}.pgc{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.pgc select{width:auto;padding:6px 8px;background:var(--panel);color:var(--tx);border-color:var(--line)}.pgc .chip2{padding:5px 11px}.chip2:disabled{opacity:.35;cursor:default}
-.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;width:100%}.wd{text-align:center;color:var(--mu);font-size:12px;padding:2px 0}
-.cd{min-height:66px;border:1px solid var(--line);border-radius:10px;padding:5px 7px;background:var(--bg);display:flex;flex-direction:column;font-size:12px;min-width:0}.cd.x{border:0;background:none}.cd span{color:var(--mu)}.cd b{margin-top:auto;font-size:13px;overflow:hidden;text-overflow:ellipsis}.cd i{font-style:normal;font-size:10px;color:var(--gold);font-weight:700}
+.ca-detail-grid{display:grid;grid-template-columns:minmax(320px,1fr) minmax(420px,1.4fr);gap:20px;align-items:start;width:100%;box-sizing:border-box}
+@media(max-width:960px){.ca-detail-grid{grid-template-columns:1fr;gap:18px}}
+.ca-cal-hdr{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;width:100%}
+.ca-cal-nav{display:flex;align-items:center;gap:8px}
+.ca-cal-nav b{min-width:140px;text-align:center;font-size:15px;color:#fff}
+.ca-cal-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;width:100%;box-sizing:border-box}.wd{text-align:center;color:var(--mu);font-size:12px;padding:2px 0}
+.cd{min-height:66px;border:1px solid var(--line);border-radius:10px;padding:5px 7px;background:var(--bg);display:flex;flex-direction:column;font-size:12px;min-width:0;box-sizing:border-box}.cd.x{border:0;background:none}.cd span{color:var(--mu)}.cd b{margin-top:auto;font-size:13px;overflow:hidden;text-overflow:ellipsis}.cd i{font-style:normal;font-size:10px;color:var(--gold);font-weight:700}
 .cd.paid{background:rgba(34,197,94,.18);border-color:#22c55e}.cd.off{opacity:.35}.cd.today{outline:2px solid var(--gold)}.cd.ck{cursor:pointer}.cd.ck:hover{border-color:var(--gold)}
 .prog{height:8px;border-radius:6px;background:var(--line);overflow:hidden;width:100%}.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--gold),#22c55e)}
-@media(max-width:560px){.cd{min-height:54px;padding:3px 4px}.cd b{font-size:11px}}
+@media(max-width:600px){
+  #view{padding:14px 10px}
+  .ca-cal-hdr{flex-direction:column;align-items:center;gap:8px}
+  .ca-cal-nav{justify-content:center;width:100%}
+  .ca-cal-nav b{min-width:130px;font-size:14.5px}
+  .ca-cal-meta{justify-content:center;text-align:center}
+  .ca-box-cal{padding:12px 8px !important}
+  .calg{gap:4px}
+  .wd{font-size:11px;padding:2px 0}
+  .cd{min-height:52px;padding:4px 3px;border-radius:8px;font-size:11px}
+  .cd span{font-size:11px;line-height:1.1}
+  .cd i{font-size:9px;line-height:1;margin-top:1px}
+  .cd b{font-size:10.5px;line-height:1.1}
+}
+@media(max-width:380px){
+  #view{padding:10px 6px}
+  .ca-box-cal{padding:10px 5px !important}
+  .calg{gap:3px}
+  .wd{font-size:10px}
+  .cd{min-height:48px;padding:3px 2px;border-radius:6px;font-size:10px}
+  .cd span{font-size:10px}
+  .cd i{font-size:8.5px}
+  .cd b{font-size:9.5px}
+}
 .hdr2{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;width:100%}
 .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;margin-top:14px;width:100%}@media(min-width:1440px){.dgrid{grid-template-columns:repeat(3,1fr)}}
 .dc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0;width:100%;box-sizing:border-box}.dc h4{margin:0 0 10px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.dc h4 a{font-size:12px;color:var(--gold);cursor:pointer;font-weight:600}
@@ -249,18 +278,18 @@ dialog.confirm-dlg.modal-closing{animation:confirmPopOut .2s ease-in both}
 #out-done .btn:hover{transform:translateY(-1.5px);box-shadow:0 6px 24px rgba(224,177,58,.55)}
 </style>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script defer src="modules.js?v=2026103103"></script>
-<script defer src="sales.js?v=2026103103"></script>
-<script defer src="ca.js?v=2026103103"></script>
-<script defer src="rentals.js?v=2026103103"></script>
-<script defer src="dash.js?v=2026103103"></script>
-<script defer src="attendance.js?v=2026103103"></script>
-<script defer src="docs.js?v=2026103103"></script>
-<script defer src="orgchart.js?v=2026103103"></script>
-<script defer src="thermal.js?v=2026103103"></script>
-<script defer src="backup.js?v=2026103103"></script>
-<script defer src="proposed.js?v=2026103103"></script>
-<script defer src="app.js?v=2026103103"></script>
+<script defer src="modules.js?v=2026103104"></script>
+<script defer src="sales.js?v=2026103104"></script>
+<script defer src="ca.js?v=2026103104"></script>
+<script defer src="rentals.js?v=2026103104"></script>
+<script defer src="dash.js?v=2026103104"></script>
+<script defer src="attendance.js?v=2026103104"></script>
+<script defer src="docs.js?v=2026103104"></script>
+<script defer src="orgchart.js?v=2026103104"></script>
+<script defer src="thermal.js?v=2026103104"></script>
+<script defer src="backup.js?v=2026103104"></script>
+<script defer src="proposed.js?v=2026103104"></script>
+<script defer src="app.js?v=2026103104"></script>
 </head><body><section id="boot"><div class="bl"><div class="ring"></div><img data-logo alt=""></div></section>
 <section id="auth" class="hide"><div class="bgimg"></div><div class="parts" id="parts"></div><div class="card">
 <img data-logo alt="North-005"><h1>North005 Davao ERP</h1><p class="s">Kugihan · Masaligan · Maalagaron</p>

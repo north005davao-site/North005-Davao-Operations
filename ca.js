@@ -52,19 +52,23 @@ async function detail(v){
   ${r.note?`<div class="chip" style="margin:-4px 0 10px">Note: ${esc(r.note)}</div>`:""}
   <div class="kpis" style="margin-bottom:14px"><div class="kpi"><small>Cash advance</small><b>${money(amt)}</b></div><div class="kpi"><small>Total paid</small><b>${money(paid)}</b></div><div class="kpi"><small>Remaining balance</small><b>${money(rem)}</b></div></div>
   <div class="prog" style="margin:0 0 18px"><i style="width:${Math.min(100,paid/amt*100)}%"></i></div>
-  <div class="split-2col" style="grid-template-columns:minmax(320px, 1fr) minmax(420px, 1.4fr);gap:18px">
+  <div class="ca-detail-grid">
     <div>
       <h4 class="h" style="margin-top:0">Payments History</h4>
       <div id="pl"></div>
     </div>
     <div>
-      <div class="box" style="margin:0">
-        <div class="tbar" style="margin-bottom:8px">
-          <button class="chip2" id="pm">‹</button>
-          <b id="mt" style="min-width:150px;text-align:center"></b>
-          <button class="chip2" id="nm2">›</button>
-          <span class="chip" id="ms"></span>
-          ${adm?'<span class="chip">Click a day to record a payment</span>':""}
+      <div class="box ca-box-cal" style="margin:0">
+        <div class="ca-cal-hdr">
+          <div class="ca-cal-nav">
+            <button class="chip2" id="pm" aria-label="Previous month">‹</button>
+            <b id="mt"></b>
+            <button class="chip2" id="nm2" aria-label="Next month">›</button>
+          </div>
+          <div class="ca-cal-meta">
+            <span class="chip" id="ms"></span>
+            ${adm?'<span class="chip">Click a day to record a payment</span>':""}
+          </div>
         </div>
         <div id="cal"></div>
       </div>
