@@ -1,7 +1,9 @@
 (()=>{const P={},js=u=>P[u]||(P[u]=new Promise((res,rej)=>{const s=document.createElement("script");s.src=u;s.onload=res;s.onerror=()=>{delete P[u];rej(new Error("load failed"))};document.head.appendChild(s)})),
   css=u=>P[u]||(P[u]=new Promise(res=>{const l=document.createElement("link");l.rel="stylesheet";l.href=u;l.onload=res;l.onerror=res;document.head.appendChild(l)})),CD="https://cdn.jsdelivr.net/npm/";
   window.LIB={js,xlsx:()=>window.XLSX?Promise.resolve():js(CD+"xlsx@0.18.5/dist/xlsx.full.min.js"),exceljs:()=>window.ExcelJS?Promise.resolve():js(CD+"exceljs@4.4.0/dist/exceljs.min.js"),
-    leaflet:()=>Promise.all([css(CD+"leaflet@1.9.4/dist/leaflet.css"),window.L?0:js(CD+"leaflet@1.9.4/dist/leaflet.js")])}})();
+    leaflet:()=>Promise.all([css(CD+"leaflet@1.9.4/dist/leaflet.css"),window.L?0:js(CD+"leaflet@1.9.4/dist/leaflet.js")]),
+    html2canvas:()=>window.html2canvas?Promise.resolve():js(CD+"html2canvas@1.4.1/dist/html2canvas.min.js"),
+    jszip:()=>window.JSZip?Promise.resolve():js(CD+"jszip@3.10.1/dist/jszip.min.js")}})();
 (()=>{
 const MUNI={"PANABO":["Panabo City","#22c55e"],"STO. TOMAS":["Sto. Tomas","#facc15"],"CARMEN":["Carmen","#ef4444"],"KAPALONG":["Kapalong","#3b82f6"],"TAGUM":["Tagum City","#a855f7"],"TALAINGOD":["Talaingod","#ec4899"],"SAMAL":["Samal","#06b6d4"]};
 const COLLECTORS=["JOHN","JAYSON","MUHLEN","JASON","MAC²","NELSON","CHARLIE"];
