@@ -4,6 +4,7 @@
     leaflet:()=>Promise.all([css(CD+"leaflet@1.9.4/dist/leaflet.css"),window.L?0:js(CD+"leaflet@1.9.4/dist/leaflet.js")]),
     html2canvas:()=>window.html2canvas?Promise.resolve():js(CD+"html2canvas@1.4.1/dist/html2canvas.min.js"),
     jszip:()=>window.JSZip?Promise.resolve():js(CD+"jszip@3.10.1/dist/jszip.min.js")}})();
+
 (()=>{
 const MUNI={"PANABO":["Panabo City","#22c55e"],"STO. TOMAS":["Sto. Tomas","#facc15"],"CARMEN":["Carmen","#ef4444"],"KAPALONG":["Kapalong","#3b82f6"],"TAGUM":["Tagum City","#a855f7"],"TALAINGOD":["Talaingod","#ec4899"],"SAMAL":["Samal","#06b6d4"]};
 const COLLECTORS=["JOHN","JAYSON","MUHLEN","JASON","MAC²","NELSON","CHARLIE"];
@@ -23,6 +24,176 @@ function paginate(k,rows){const st=pgState(k),total=rows.length,pages=Math.max(1
   return{st,slice:rows.slice((st.page-1)*st.size,st.page*st.size),bar}}
 function bindPager(root,st,redraw){root.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>{const v=b.dataset.pg;st.page=v=="prev"?st.page-1:v=="next"?st.page+1:+v;redraw()});const s=root.querySelector("[data-pgsize]");if(s)s.onchange=()=>{st.size=+s.value;st.page=1;redraw()}}
 window.PAGER={paginate,bind:bindPager,reset:k=>{pgState(k).page=1}};window.MUNI=MUNI;
+
+// ============================================================================
+// CENTRAL PERSONNEL MASTER REGISTRY (AUTHORITATIVE ENGINE)
+// ============================================================================
+const PERSONNEL_STORAGE_KEY="north005_personnel_meta_v2";
+const PERSONNEL={
+  data:null,
+  at:0,
+  async getMeta(){
+    try{
+      const local=localStorage.getItem(PERSONNEL_STORAGE_KEY);
+      const m=local?JSON.parse(local):{};
+      // Check cloud metadata in org_photos for cross-device sync
+      const{data}=await sb.from("org_photos").select("photo_path").eq("key","sys:personnel").maybeSingle();
+      if(data&&data.photo_path){
+        try{const cloud=JSON.parse(data.photo_path);return Object.assign({},cloud,m)}catch(e){}
+      }
+      return m;
+    }catch(e){return{}}
+  },
+  async setMeta(meta){
+    try{
+      localStorage.setItem(PERSONNEL_STORAGE_KEY,JSON.stringify(meta));
+      await sb.from("org_photos").upsert({key:"sys:personnel",photo_path:JSON.stringify(meta),updated_at:new Date().toISOString()},{onConflict:"key"});
+    }catch(e){}
+  },
+  async load(force=false){
+    if(this.data&&!force&&Date.now()-this.at<15000)return this.data;
+    const[P,Ot,Rl,meta]=await Promise.all([
+      all("profiles"),
+      all("registry_outlets"),
+      all("registry_relievers"),
+      this.getMeta()
+    ]);
+    
+    // Default known personnel mapping for authoritative registry
+    const defaultCollectors=[
+      {emp_id:"COL-001",name:"Charlie",role:"collector",area:"SAMAL",supervisor:"Wildon Batalla",status:"ACTIVE",contact:"09123456781"},
+      {emp_id:"COL-002",name:"Nelson",role:"collector",area:"SAMAL",supervisor:"Wildon Batalla",status:"ACTIVE",contact:"09123456782"},
+      {emp_id:"COL-003",name:"Adulfo Muhlen T. Alao",role:"collector",area:"DDN",supervisor:null,status:"ACTIVE",contact:"09123456783"},
+      {emp_id:"COL-004",name:"Jason S. Liray",role:"collector",area:"DDN",supervisor:null,status:"ACTIVE",contact:"09123456784"},
+      {emp_id:"COL-005",name:"Jayson M. Pacaña",role:"collector",area:"DDN",supervisor:null,status:"ACTIVE",contact:"09123456785"},
+      {emp_id:"COL-006",name:"John Christopher V. Wong",role:"collector",area:"DDN",supervisor:null,status:"ACTIVE",contact:"09123456786"},
+      {emp_id:"COL-007",name:"Mark Anthony Villarta",role:"collector",area:"DDN",supervisor:null,status:"ACTIVE",contact:"09123456787"}
+    ];
+
+    const defaultSupervisors=[
+      {emp_id:"SUP-001",name:"Wildon Batalla",role:"supervisor",area:"SAMAL",supervisor:null,status:"ACTIVE",contact:""}
+    ];
+
+    const regMap=new Map();
+    // 1. Seed defaults
+    defaultSupervisors.forEach(s=>regMap.set("s:"+s.name.toUpperCase(),{...s,id:"sup:"+s.name.toLowerCase(),booths:[],profile_id:null}));
+    defaultCollectors.forEach(c=>regMap.set("c:"+c.name.toUpperCase(),{...c,id:"col:"+c.name.toLowerCase(),booths:[],profile_id:null}));
+
+    // 2. Overlay profiles (active supervisors and collectors)
+    (P||[]).forEach(p=>{
+      const nm=p.full_name||p.username;
+      if(!nm)return;
+      const un=nm.toUpperCase();
+      if(p.role==="supervisor"){
+        const key="s:"+un;
+        const ex=regMap.get(key)||{};
+        regMap.set(key,{
+          emp_id:ex.emp_id||("SUP-"+p.id.slice(0,4).toUpperCase()),
+          id:"p:"+p.id,
+          profile_id:p.id,
+          name:nm,
+          role:"supervisor",
+          area:p.area||ex.area||"SAMAL",
+          supervisor:null,
+          status:(p.status==="active"?"ACTIVE":"INACTIVE"),
+          contact:ex.contact||"",
+          booths:[]
+        });
+      } else if(p.role==="collector"){
+        // Match against existing collectors
+        let matchedKey=null;
+        for(const k of regMap.keys()){
+          if(k.startsWith("c:")&&((un.includes(k.slice(2))||k.slice(2).includes(un))||(p.username&&k.slice(2).startsWith(p.username.toUpperCase())))){
+            matchedKey=k;break;
+          }
+        }
+        const key=matchedKey||("c:"+un);
+        const ex=regMap.get(key)||{};
+        regMap.set(key,{
+          emp_id:ex.emp_id||("COL-"+p.id.slice(0,4).toUpperCase()),
+          id:"p:"+p.id,
+          profile_id:p.id,
+          name:nm,
+          role:"collector",
+          area:p.area||ex.area||"DDN",
+          supervisor:ex.supervisor||null,
+          status:(p.status==="active"?"ACTIVE":"INACTIVE"),
+          contact:ex.contact||"",
+          booths:[]
+        });
+      }
+    });
+
+    // 3. Count booth assignments from registry_outlets
+    (Ot||[]).forEach(o=>{
+      const colName=String(o.collector||"").trim().toUpperCase();
+      if(!colName)return;
+      // find in regMap
+      for(const[k,entry] of regMap.entries()){
+        if(k.startsWith("c:")){
+          const eName=entry.name.toUpperCase();
+          if(eName.includes(colName)||colName.includes(eName)||colName===entry.emp_id){
+            entry.booths.push(o.booth_code);
+            if(o.municipality==="SAMAL"&&!entry.area)entry.area="SAMAL";
+            break;
+          }
+        }
+      }
+    });
+
+    // 4. Overlay saved admin overrides from meta
+    if(meta&&meta.personnel){
+      Object.entries(meta.personnel).forEach(([k,ov])=>{
+        const uk=k.toUpperCase();
+        if(regMap.has(uk)){
+          Object.assign(regMap.get(uk),ov);
+        } else {
+          regMap.set(uk,ov);
+        }
+      });
+    }
+
+    const list=[...regMap.values()];
+    this.data={list,profiles:P||[],outlets:Ot||[],relievers:Rl||[]};
+    this.at=Date.now();
+    return this.data;
+  },
+
+  async getCollectors(activeOnly=true){
+    const d=await this.load();
+    let cols=d.list.filter(p=>p.role==="collector");
+    if(activeOnly)cols=cols.filter(p=>p.status==="ACTIVE");
+    return cols.sort((a,b)=>a.name.localeCompare(b.name));
+  },
+
+  async getSupervisors(activeOnly=true){
+    const d=await this.load();
+    let sups=d.list.filter(p=>p.role==="supervisor");
+    if(activeOnly)sups=sups.filter(p=>p.status==="ACTIVE");
+    return sups.sort((a,b)=>a.name.localeCompare(b.name));
+  },
+
+  async savePersonnel(record){
+    const meta=await this.getMeta();
+    meta.personnel=meta.personnel||{};
+    const key=(record.role==="supervisor"?"s:":"c:")+record.name.toUpperCase();
+    meta.personnel[key]=Object.assign({},meta.personnel[key]||{},record);
+    await this.setMeta(meta);
+
+    // If linked to a profile, update profile role/status/area
+    if(record.profile_id){
+      await sb.from("profiles").update({
+        full_name:record.name,
+        role:record.role,
+        status:(record.status==="ACTIVE"?"active":"disabled"),
+        area:record.area||null
+      }).eq("id",record.profile_id);
+    }
+    this.data=null;
+    return record;
+  }
+};
+window.PERSONNEL=PERSONNEL;
 
 function parseAreas(X,buf){
   const wb=X.read(buf,{type:"array"}),out=new Map();
@@ -59,16 +230,23 @@ function parseMasterlist(X,buf){
   }
   return{outlets:[...map.values()],relievers:[...rel.values()]}}
 
-let S={tab:"o",q:"",m:"",O:[],R:[]},timer=null,subbed=false,mapState=null;
+let S={tab:"p",q:"",m:"",pos:"",st:"",O:[],R:[],P:[]},timer=null,subbed=false,mapState=null;
 async function all(t){let out=[],i=0;for(;;){const{data,error}=await sb.from(t).select("*").range(i,i+999);if(error||!data)break;out=out.concat(data);if(data.length<1000)break;i+=1000}return out}
 const pill=m=>MUNI[m]?`<span class="pill" style="background:${MUNI[m][1]}">${MUNI[m][0]}</span>`:esc(m||"");
+
 function subscribe(){if(subbed)return;subbed=true;
-  sb.channel("reg").on("postgres_changes",{event:"*",schema:"public",table:"registry_outlets"},bump).on("postgres_changes",{event:"*",schema:"public",table:"registry_relievers"},bump).subscribe()}
+  sb.channel("reg").on("postgres_changes",{event:"*",schema:"public",table:"registry_outlets"},bump)
+    .on("postgres_changes",{event:"*",schema:"public",table:"registry_relievers"},bump)
+    .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},bump).subscribe()}
 function bump(){clearTimeout(timer);timer=setTimeout(()=>{if(!QUIETW()&&!document.querySelector("dialog[open]")&&(cur=="MASTER REGISTRY"||cur=="ETS LIVE TRACKING")&&!S.busy)go(cur)},500)}
 
 const OF=[["booth_code","Booth code"],["sr_name","Sales representative"],["municipality","Municipality","m"],["barangay","Barangay"],["purok","Purok"],["sr_id_no","SR ID no."],["oa_name","Operations Administrator"],["oa_id_no","OA ID no."],["status","Status","s"],["sr_contact","SR contact #"],["pos_no","POS no."],["coords","Coordinates (lat, lng)"],["collector","Collector / Area","c"],["address","Address (for reports)"],["needs_details","Needs details","k"]];
 const RF=[["name","Reliever name"],["contact","Contact #"],["municipality","Municipality"],["status","Status","s"]];
+
 function edit(kind,row,done){
+  if(kind==="p"){
+    return editPersonnel(row,done);
+  }
   const F=kind=="o"?OF:RF,tb=kind=="o"?"registry_outlets":"registry_relievers",d=document.createElement("dialog"),r={...row};
   if(kind=="o")r.coords=r.lat!=null?r.lat+", "+r.lng:"";
   const inp=([k,l,t])=>{const val=esc(r[k]??"");
@@ -88,23 +266,249 @@ function edit(kind,row,done){
     if(error)return m.textContent=/duplicate/i.test(error.message)?"That already exists.":"Could not save.";close();done()};
   const x=d.querySelector("#dx");if(x)x.onclick=async()=>{if(!confirm("Delete this record?"))return;const{error}=await sb.from(tb).delete().eq("id",row.id);if(error)return m.textContent="Could not delete.";close();done()}}
 
+function editPersonnel(row,done){
+  const r={...row};
+  const isNew=!r.name;
+  const d=document.createElement("dialog");
+  d.innerHTML=`
+    <h4 style="margin:0 0 6px">${isNew?"Add New Personnel":"Edit Personnel — "+esc(r.name)}</h4>
+    <div class="chip" style="margin-bottom:12px">Authoritative Personnel Master Registry</div>
+    
+    <div class="g2">
+      <div>
+        <label>Employee ID</label>
+        <input id="pe-id" value="${esc(r.emp_id||("EMP-"+Date.now().toString().slice(-4)))}" placeholder="EMP-001">
+      </div>
+      <div>
+        <label>Full Name</label>
+        <input id="pe-name" value="${esc(r.name||"")}" placeholder="e.g. Charlie" ${!isNew&&r.name?'':''}>
+      </div>
+      <div>
+        <label>Position / Role</label>
+        <select id="pe-role">
+          <option value="collector"${r.role==='collector'?' selected':''}>Field Sales Collector</option>
+          <option value="supervisor"${r.role==='supervisor'?' selected':''}>Field Sales Supervisor</option>
+        </select>
+      </div>
+      <div>
+        <label>Assigned Area</label>
+        <select id="pe-area">
+          <option value="SAMAL"${r.area==='SAMAL'?' selected':''}>Samal</option>
+          <option value="DDN"${r.area==='DDN'||!r.area?' selected':''}>Davao del Norte (DDN)</option>
+        </select>
+      </div>
+      <div>
+        <label>Assigned Supervisor (for collectors)</label>
+        <select id="pe-sup">
+          <option value="">— none / self —</option>
+          <option value="Wildon Batalla"${r.supervisor==='Wildon Batalla'||(r.area==='SAMAL'&&r.role==='collector')?' selected':''}>Wildon Batalla (Samal)</option>
+        </select>
+      </div>
+      <div>
+        <label>Personnel Status</label>
+        <select id="pe-status">
+          <option value="ACTIVE"${r.status==='ACTIVE'||!r.status?' selected':''}>ACTIVE</option>
+          <option value="INACTIVE"${r.status==='INACTIVE'?' selected':''}>INACTIVE (Deactivated)</option>
+        </select>
+      </div>
+      <div style="grid-column:1 / -1">
+        <label>Contact Phone Number</label>
+        <input id="pe-contact" value="${esc(r.contact||"")}" placeholder="09123456789">
+      </div>
+    </div>
+
+    ${!isNew&&r.role==='collector'?`
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">Booth Assignments (${(r.booths||[]).length} booths currently assigned)</div>
+      <div class="chip" style="margin-bottom:8px">${(r.booths||[]).slice(0,10).join(", ")}${(r.booths||[]).length>10?'…':''}</div>
+    </div>`:''}
+
+    <div class="msg" id="pe-msg"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn" id="pe-save">${isNew?"Add Personnel":"Save Changes"}</button>
+      <button class="ghost" id="pe-cancel">Cancel</button>
+      ${!isNew?`<button class="ghost" id="pe-deact" style="margin-left:auto;color:${r.status==='ACTIVE'?'#f59e0b':'#22c55e'}">${r.status==='ACTIVE'?'Deactivate':'Activate'}</button>`:''}
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.showModal();
+  const m=d.querySelector("#pe-msg");
+  const close=()=>{d.close();d.remove()};
+  d.querySelector("#pe-cancel").onclick=close;
+
+  d.querySelector("#pe-save").onclick=async()=>{
+    const name=d.querySelector("#pe-name").value.trim();
+    if(!name)return m.textContent="Full name is required.";
+    const emp_id=d.querySelector("#pe-id").value.trim()||("EMP-"+Date.now().toString().slice(-4));
+    const role=d.querySelector("#pe-role").value;
+    const area=d.querySelector("#pe-area").value;
+    const supervisor=d.querySelector("#pe-sup").value||null;
+    const status=d.querySelector("#pe-status").value;
+    const contact=d.querySelector("#pe-contact").value.trim();
+
+    m.style.color="var(--gold)";m.textContent="Saving personnel record…";
+    const record={
+      ...r,
+      emp_id,
+      name,
+      role,
+      area,
+      supervisor,
+      status,
+      contact,
+      date_added:r.date_added||new Date().toISOString().slice(0,10)
+    };
+
+    await window.PERSONNEL.savePersonnel(record);
+    close();
+    done();
+  };
+
+  const deactBtn=d.querySelector("#pe-deact");
+  if(deactBtn){
+    deactBtn.onclick=async()=>{
+      const newSt=r.status==="ACTIVE"?"INACTIVE":"ACTIVE";
+      if(!confirm(`${newSt==="INACTIVE"?"Deactivate":"Activate"} ${r.name}? ${newSt==="INACTIVE"?"Historical cash advances and payments will be strictly preserved.":""}`))return;
+      r.status=newSt;
+      await window.PERSONNEL.savePersonnel(r);
+      close();
+      done();
+    };
+  }
+}
+
 async function registry(v){
-  const adm=me.role=="admin";const soft=v.dataset.mod==cur&&S.O.length>0,fetchAll=async()=>{[S.O,S.R]=await Promise.all([all("registry_outlets"),all("registry_relievers")]);S.O.sort(natural);S.R.sort((a,b)=>a.name.localeCompare(b.name))};if(soft)await fetchAll();v.dataset.mod=cur;
-  v.innerHTML=`<div class="tbar"><button class="chip2 on" data-t="o">Outlets</button><button class="chip2" data-t="r">Relievers</button><input id="rq" placeholder="Search…" value="${esc(S.q)}"><select id="rm"><option value="">All municipalities</option>${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}</select>${adm?`<button class="ghost" id="ra">+ Add</button><label class="ghost up">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label><label class="ghost up">Import Areas (Excel report)<input type="file" id="ra2" accept=".xlsx,.xls" hidden></label>`:""}<span class="chip" id="rc"></span></div><div id="rp"></div><div class="tw" id="rt"><div class="empty">Loading…</div></div>`;
-  if(!soft)await fetchAll();
+  const adm=me.role=="admin";
+  LOAD(v);
+  // Fetch authoritative personnel, outlets, and relievers
+  const pData=await window.PERSONNEL.load(true);
+  S.P=pData.list;
+  S.O=pData.outlets.sort(natural);
+  S.R=pData.relievers.sort((a,b)=>a.name.localeCompare(b.name));
+  v.dataset.mod=cur;
+
+  v.innerHTML=`
+    <div class="tbar">
+      <button class="chip2${S.tab==="p"?" on":""}" data-t="p">Personnel Master Registry (${S.P.length})</button>
+      <button class="chip2${S.tab==="o"?" on":""}" data-t="o">Outlets (${S.O.length})</button>
+      <button class="chip2${S.tab==="r"?" on":""}" data-t="r">Relievers (${S.R.length})</button>
+      <input id="rq" placeholder="Search name, booth, area…" value="${esc(S.q)}" style="flex:2;min-width:180px">
+      
+      <select id="rpos" class="${S.tab!=='p'?'hide':''}" style="flex:1;min-width:140px">
+        <option value="">All Positions</option>
+        <option value="supervisor"${S.pos==='supervisor'?' selected':''}>Supervisors</option>
+        <option value="collector"${S.pos==='collector'?' selected':''}>Collectors</option>
+      </select>
+      
+      <select id="rm" class="${S.tab==='r'?'hide':''}" style="flex:1;min-width:140px">
+        <option value="">All Areas / Munis</option>
+        <option value="SAMAL"${S.m==="SAMAL"?" selected":""}>Samal</option>
+        <option value="DDN"${S.m==="DDN"?" selected":""}>Davao del Norte (DDN)</option>
+        ${Object.entries(MUNI).map(([k,l])=>`<option value="${k}"${k==S.m?" selected":""}>${l[0]}</option>`).join("")}
+      </select>
+
+      ${adm?`<button class="ghost" id="ra" style="border-color:var(--gold);color:var(--gold);font-weight:600">+ Add</button>
+      <label class="ghost up ${S.tab==='p'?'hide':''}">Upload Masterlist (Excel)<input type="file" id="ru" accept=".xlsx,.xls" hidden></label>
+      <label class="ghost up ${S.tab==='p'?'hide':''}">Import Areas (Excel report)<input type="file" id="ra2" accept=".xlsx,.xls" hidden></label>`:""}
+      <span class="chip" id="rc"></span>
+    </div>
+    <div id="rp"></div>
+    <div class="tw" id="rt"><div class="empty">Loading…</div></div>
+  `;
+
   const draw=()=>{
-    v.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t==S.tab));$("#rm").classList.toggle("hide",S.tab!="o");
-    const q=S.q.toLowerCase(),has=r=>Object.values(r).some(x=>x!=null&&String(x).toLowerCase().includes(q));
-    const rows=(S.tab=="o"?S.O.filter(r=>(!S.m||r.municipality==S.m)):S.R).filter(r=>!q||has(r));$("#rc").textContent=rows.length+" record"+(rows.length==1?"":"s");
-    if(!rows.length){$("#rt").innerHTML=`<div class="empty"><b>${S.tab=="o"?"Master Registry":"Relievers"}</b><br>No records yet.${adm?" Use “Upload Masterlist (Excel)” to import, or “+ Add”.":""}</div>`;return}
+    v.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t==S.tab));
+    $("#rpos").classList.toggle("hide",S.tab!=="p");
+    $("#rm").classList.toggle("hide",S.tab==="r");
+    const q=S.q.toLowerCase();
+
+    if(S.tab==="p"){
+      // PERSONNEL MASTER REGISTRY VIEW
+      const filtered=S.P.filter(p=>{
+        const matchQ=!q||(p.name+" "+p.emp_id+" "+(p.supervisor||"")+" "+(p.area||"")+" "+(p.contact||"")).toLowerCase().includes(q);
+        const matchPos=!S.pos||p.role===S.pos;
+        const matchArea=!S.m||p.area===S.m||(S.m==="SAMAL"&&p.area==="SAMAL")||(S.m!=="SAMAL"&&p.area==="DDN");
+        return matchQ&&matchPos&&matchArea;
+      });
+
+      $("#rc").textContent=filtered.length+" personnel";
+      if(!filtered.length){
+        $("#rt").innerHTML=`<div class="empty"><b>Personnel Master Registry</b><br>No personnel matching filters.${adm?' Click "+ Add" to add a new supervisor or collector.':''}</div>`;
+        return;
+      }
+
+      const pg=PAGER.paginate("reg_p",filtered);
+      $("#rt").innerHTML=`
+        <table>
+          <thead>
+            <tr>
+              <th>Employee ID</th>
+              <th>Full Name</th>
+              <th>Position</th>
+              <th>Assigned Area</th>
+              <th>Assigned Supervisor</th>
+              <th>Booth Assignment</th>
+              <th>Status</th>
+              <th>Contact</th>
+              ${adm?'<th>Actions</th>':''}
+            </tr>
+          </thead>
+          <tbody>
+            ${pg.slice.map(p=>{
+              const posLabel=p.role==="supervisor"?"Field Sales Supervisor":p.role==="collector"?"Field Sales Collector":esc(p.role);
+              const posBg=p.role==="supervisor"?"#8b5cf6":p.role==="collector"?"#3b82f6":"#64748b";
+              const stBg=p.status==="ACTIVE"?"#22c55e":"#94a3b8";
+              const bCount=(p.booths||[]).length;
+              return `<tr data-p-id="${esc(p.id)}"${adm?' style="cursor:pointer"':''}>
+                <td><span class="chip" style="font-family:monospace;font-weight:700">${esc(p.emp_id||"—")}</span></td>
+                <td><b>${esc(p.name)}</b></td>
+                <td><span class="pill" style="background:${posBg};color:#fff">${posLabel}</span></td>
+                <td>${esc(p.area||"—")}</td>
+                <td>${esc(p.supervisor||(p.role==='supervisor'?'— (Supervisor)':'None'))}</td>
+                <td>${bCount>0?`<b>${bCount} booths</b> <span class="chip" style="font-size:11px">(${esc(p.booths.slice(0,3).join(", "))}${bCount>3?'…':''})</span>`:'<span class="chip">—</span>'}</td>
+                <td><span class="pill" style="background:${stBg};color:#fff">${esc(p.status||"ACTIVE")}</span></td>
+                <td>${esc(p.contact||"—")}</td>
+                ${adm?`<td><button class="ghost" data-p-ed="${esc(p.id)}" style="padding:3px 9px;font-size:12px">Edit</button></td>`:''}
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>`+pg.bar;
+
+      PAGER.bind($("#rt"),pg.st,draw);
+      if(adm){
+        $("#rt").querySelectorAll("tr[data-p-id]").forEach(tr=>{
+          tr.onclick=()=>{
+            const p=S.P.find(x=>x.id===tr.dataset.pId);
+            if(p)editPersonnel(p,()=>registry(v));
+          };
+        });
+      }
+      return;
+    }
+
+    // OUTLETS OR RELIEVERS VIEW
+    const has=r=>Object.values(r).some(x=>x!=null&&String(x).toLowerCase().includes(q));
+    const rows=(S.tab=="o"?S.O.filter(r=>(!S.m||r.municipality==S.m)):S.R).filter(r=>!q||has(r));
+    $("#rc").textContent=rows.length+" record"+(rows.length==1?"":"s");
+    if(!rows.length){
+      $("#rt").innerHTML=`<div class="empty"><b>${S.tab=="o"?"Master Registry Outlets":"Relievers"}</b><br>No records yet.${adm?" Use “Upload Masterlist (Excel)” to import, or “+ Add”.":""}</div>`;
+      return;
+    }
     const pg=PAGER.paginate("reg_"+S.tab,rows);
     const head=S.tab=="o"?["Booth code","Sales representative","Municipality","Barangay","Purok","Collector","Status","Contact","POS no.","Coordinates"]:["Name","Contact","Municipality","Status"];
     const cell=r=>S.tab=="o"?[`${r.needs_details?"⚠ ":""}<b>${esc(r.booth_code)}</b>`,esc(r.sr_name),pill(r.municipality),esc(r.barangay),esc(r.purok),esc(r.collector),esc(r.status),esc(r.sr_contact),esc(r.pos_no),r.lat!=null?r.lat+", "+r.lng:'<span style="color:var(--red)">missing</span>']:[esc(r.name),esc(r.contact),esc(r.municipality),esc(r.status)];
-    $("#rt").innerHTML=`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${pg.slice.map((r,i)=>`<tr data-i="${r.id}"${adm?' style="cursor:pointer"':""}>${cell(r).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`+pg.bar;PAGER.bind($("#rt"),pg.st,draw);
-    if(adm)$("#rt").querySelectorAll("tr[data-i]").forEach(tr=>tr.onclick=()=>edit(S.tab,(S.tab=="o"?S.O:S.R).find(x=>x.id==tr.dataset.i),()=>registry(v)))};
+    $("#rt").innerHTML=`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${pg.slice.map((r,i)=>`<tr data-i="${r.id}"${adm?' style="cursor:pointer"':""}>${cell(r).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`+pg.bar;
+    PAGER.bind($("#rt"),pg.st,draw);
+    if(adm)$("#rt").querySelectorAll("tr[data-i]").forEach(tr=>tr.onclick=()=>edit(S.tab,(S.tab=="o"?S.O:S.R).find(x=>x.id==tr.dataset.i),()=>registry(v)));
+  };
+
   v.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;PAGER.reset("reg_"+S.tab);draw()});
-  $("#rq").oninput=e=>{S.q=e.target.value;PAGER.reset("reg_"+S.tab);draw()};$("#rm").onchange=e=>{S.m=e.target.value;PAGER.reset("reg_"+S.tab);draw()};
-  if(adm){$("#ra").onclick=()=>edit(S.tab,{},()=>registry(v));
+  $("#rq").oninput=e=>{S.q=e.target.value;PAGER.reset("reg_"+S.tab);draw()};
+  $("#rm").onchange=e=>{S.m=e.target.value;PAGER.reset("reg_"+S.tab);draw()};
+  $("#rpos").onchange=e=>{S.pos=e.target.value;PAGER.reset("reg_p");draw()};
+
+  if(adm){
+    $("#ra").onclick=()=>edit(S.tab,{},()=>registry(v));
     $("#ra2").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const p=$("#rp");p.innerHTML='<div class="box" style="max-width:none;margin-bottom:12px">Reading file…</div>';
       try{await LIB.xlsx();const list=parseAreas(XLSX,await f.arrayBuffer());if(!list.length)throw 0;const ex=new Map(S.O.map(o=>[o.booth_code,o])),upd=list.filter(x=>ex.has(x.booth_code)),add=list.filter(x=>!ex.has(x.booth_code)),by={};list.forEach(x=>by[x.collector]=(by[x.collector]||0)+1);
         p.innerHTML=`<div class="box" style="max-width:none;margin-bottom:12px"><b>Areas found in your report</b><div style="margin:6px 0">${Object.entries(by).map(([k,n])=>`<span class="pill" style="background:var(--gold)">${esc(k)}</span> ${n}`).join(" &nbsp; ")}</div><div>${upd.length} existing booth(s) will get their collector.</div>${add.length?`<div style="margin-top:4px">${add.length} booth(s) are not in the registry and will be added with a ⚠ “Needs details” flag: ${add.map(x=>esc(x.booth_code)).join(", ")}</div>`:""}<p style="color:var(--mu);font-size:13px">Nothing else is changed or deleted.</p><button class="btn" id="ok2">Confirm</button> <button class="ghost" id="no2">Cancel</button><span id="pg2" class="chip" style="margin-left:10px"></span></div>`;
@@ -152,5 +556,5 @@ async function ets(v){
   lab();setTimeout(()=>map.invalidateSize(),100);mapState={map};subscribe()}
 
 window.parseMasterlist=parseMasterlist;window.parseAreas=parseAreas;
-window.MODS={"MASTER REGISTRY":registry,"ETS LIVE TRACKING":ets};
+window.MODS=Object.assign(window.MODS||{},{"MASTER REGISTRY":registry,"ETS LIVE TRACKING":ets});
 })();

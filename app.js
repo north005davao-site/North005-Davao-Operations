@@ -161,25 +161,248 @@ function acct(v){
 document.addEventListener("paste",e=>{if(cur!=ACC||!window.__accUp)return;const f=[...(e.clipboardData?.files||[])].find(x=>/^image\//.test(x.type));if(f){e.preventDefault();window.__accUp(f)}});
 
 let UQ="";
+const AUDIT_KEY="north005_admin_audit_log";
+function logAudit(action,details){
+  try{
+    const list=JSON.parse(localStorage.getItem(AUDIT_KEY)||"[]");
+    list.unshift({at:new Date().toISOString(),by:me?me.username:"admin",action,details});
+    if(list.length>100)list.pop();
+    localStorage.setItem(AUDIT_KEY,JSON.stringify(list));
+  }catch(e){}
+}
+
+function editUserModal(p,done){
+  const d=document.createElement("dialog");
+  d.innerHTML=`
+    <h4 style="margin:0 0 6px">Edit Account — ${esc(p.full_name||p.username)}</h4>
+    <div class="chip" style="margin-bottom:12px">Username: <b>${esc(p.username)}</b> · Created ${new Date(p.created_at).toLocaleDateString()}</div>
+    
+    <label>Full Name</label>
+    <input id="eu-name" value="${esc(p.full_name||"")}" placeholder="Full Name">
+    
+    <div class="g2" style="margin-top:10px">
+      <div>
+        <label>System Role</label>
+        <select id="eu-role">
+          <option value="">— Assign Role —</option>
+          ${Object.entries(ROLES).map(([k,l])=>`<option value="${k}"${k===p.role?' selected':''}>${l}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <label>Account Status</label>
+        <select id="eu-status">
+          <option value="pending"${p.status==='pending'?' selected':''}>Pending Approval</option>
+          <option value="active"${p.status==='active'?' selected':''}>Active</option>
+          <option value="disabled"${p.status==='disabled'?' selected':''}>Disabled / Deactivated</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="margin-top:10px">Assigned Area</label>
+    <select id="eu-area">
+      <option value="">— None / Unassigned —</option>
+      <option value="DDN"${p.area==='DDN'?' selected':''}>Davao del Norte (DDN)</option>
+      <option value="SAMAL"${p.area==='SAMAL'?' selected':''}>Samal</option>
+    </select>
+    
+    <div class="msg" id="eu-msg"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn" id="eu-save">Save Changes</button>
+      <button class="ghost" id="eu-cancel">Cancel</button>
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.showModal();
+  const m=d.querySelector("#eu-msg");
+  const close=()=>{d.close();d.remove()};
+  d.querySelector("#eu-cancel").onclick=close;
+
+  d.querySelector("#eu-save").onclick=async()=>{
+    const name=d.querySelector("#eu-name").value.trim();
+    const role=d.querySelector("#eu-role").value||null;
+    const status=d.querySelector("#eu-status").value;
+    const area=d.querySelector("#eu-area").value||null;
+
+    if(!name)return m.textContent="Full name is required.";
+    if(status==="active"&&!role)return m.textContent="Please assign a system role before activating this account.";
+
+    m.style.color="var(--gold)";m.textContent="Saving user account…";
+    const{error}=await sb.from("profiles").update({full_name:name,role,status,area}).eq("id",p.id);
+    if(error){
+      m.style.color="#ff8b9b";
+      return m.textContent="Could not update account: "+error.message;
+    }
+
+    logAudit("EDIT_USER",`Updated ${p.username}: name="${name}", role="${role}", status="${status}", area="${area}"`);
+    if(p.id===me.id){
+      me.full_name=name;me.role=role;me.area=area;
+      $("#who").textContent=name+" · "+ROLES[role];
+    }
+    if(window.PERSONNEL&&typeof window.PERSONNEL.load==="function"){
+      await window.PERSONNEL.load(true);
+    }
+    close();
+    done();
+  };
+}
+
+async function removeUserModal(p,done){
+  if(p.id===me.id){
+    alert("You cannot remove or deactivate your own administrator account.");
+    return;
+  }
+
+  // Check for historical transactions (Cash advances, payments, attendance)
+  const[caRes,attRes]=await Promise.all([
+    sb.from("cash_advances").select("id").or(`collector_id.eq.${p.id},created_by.eq.${p.id}`).limit(1),
+    sb.from("attendance").select("id").eq("user_id",p.id).limit(1)
+  ]);
+  const hasHistory=(caRes.data&&caRes.data.length>0)||(attRes.data&&attRes.data.length>0);
+
+  const d=document.createElement("dialog");
+  d.innerHTML=`
+    <h4 style="margin:0 0 6px">Remove or Deactivate Account</h4>
+    <div class="chip" style="margin-bottom:12px">User: <b>${esc(p.full_name||p.username)}</b> (@${esc(p.username)}) · ${ROLES[p.role]||"No Role"}</div>
+    
+    ${hasHistory?`
+      <div class="warn2" style="margin-bottom:12px">
+        <b>Data Integrity Protection:</b> This account is linked to historical operational/financial records (Cash Advances, Payments, or Attendance).
+        <p style="margin:4px 0 0;font-size:12.5px;color:var(--tx)">To preserve financial history and audit compliance, this account will be <b>Deactivated (Disabled)</b> instead of permanently deleted.</p>
+      </div>
+    `:`
+      <p style="font-size:13.5px;line-height:1.5">You can deactivate this account to prevent login, or permanently remove it if no historical records exist.</p>
+    `}
+
+    <div class="msg" id="rm-msg"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn" id="rm-deact" style="background:#f59e0b;color:#1a1300">Deactivate Account (Safe)</button>
+      ${!hasHistory?`<button class="ghost" id="rm-delete" style="color:#ef4444;border-color:#ef4444">Permanent Delete</button>`:''}
+      <button class="ghost" id="rm-cancel">Cancel</button>
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.showModal();
+  const m=d.querySelector("#rm-msg");
+  const close=()=>{d.close();d.remove()};
+  d.querySelector("#rm-cancel").onclick=close;
+
+  d.querySelector("#rm-deact").onclick=async()=>{
+    m.style.color="var(--gold)";m.textContent="Deactivating account…";
+    const{error}=await sb.from("profiles").update({status:"disabled"}).eq("id",p.id);
+    if(error){m.style.color="#ff8b9b";return m.textContent="Failed: "+error.message}
+    logAudit("DEACTIVATE_USER",`Deactivated user @${p.username} (${p.full_name}). Financial history preserved.`);
+    if(window.PERSONNEL)await window.PERSONNEL.load(true);
+    close();
+    done();
+  };
+
+  const delBtn=d.querySelector("#rm-delete");
+  if(delBtn){
+    delBtn.onclick=async()=>{
+      if(!confirm(`Are you completely sure you want to PERMANENTLY remove @${p.username}? This cannot be undone.`))return;
+      m.style.color="var(--gold)";m.textContent="Removing account…";
+      const r=await sb.rpc("admin_delete_user",{target:p.id});
+      if(r.error){
+        m.style.color="#f59e0b";
+        m.textContent="Database constraint prevented deletion. Deactivating account safely instead…";
+        await sb.from("profiles").update({status:"disabled"}).eq("id",p.id);
+        logAudit("DEACTIVATE_USER_FALLBACK",`Deactivated @${p.username} (FK constraint prevented hard delete).`);
+        setTimeout(()=>{close();done()},1200);
+        return;
+      }
+      logAudit("DELETE_USER",`Permanently deleted user @${p.username}`);
+      close();
+      done();
+    };
+  }
+}
+
 async function users(v){
   const[P,R]=await Promise.all([sb.from("profiles").select("*").order("created_at"),sb.from("password_requests").select("*").eq("status","open").order("created_at")]);
   const ps=P.data||[],rq=R.data||[],find=id=>ps.find(x=>x.id==id);
   const opt=(o,s,blank)=>(blank?`<option value="">— assign —</option>`:"")+Object.entries(o).map(([k,l])=>`<option value="${k}"${k==s?" selected":""}>${l}</option>`).join("");
+  
   const draw=()=>{
-    const q=UQ.toLowerCase(),list=ps.filter(x=>!q||[x.full_name,x.username,ROLES[x.role]||"",x.status].join(" ").toLowerCase().includes(q)),pend=ps.filter(x=>x.status=="pending").length,pg=PAGER.paginate("users",list);
+    const q=UQ.toLowerCase(),list=ps.filter(x=>!q||[x.full_name,x.username,ROLES[x.role]||"",x.status,x.area||""].join(" ").toLowerCase().includes(q)),pend=ps.filter(x=>x.status=="pending").length,pg=PAGER.paginate("users",list);
+    let auditList=[];
+    try{auditList=JSON.parse(localStorage.getItem(AUDIT_KEY)||"[]").slice(0,5)}catch(e){}
+
     v.innerHTML=(rq.length?`<h4 class="h">Password requests (${rq.length})</h4><div class="tw"><table><tbody>${rq.map(r=>`<tr><td>${esc(r.username)}</td><td>${new Date(r.created_at).toLocaleString()}</td><td><button class="ghost" data-pr="${r.user_id}" data-pn="${esc(r.username)}">Reset password</button></td></tr>`).join("")}</tbody></table></div>`:"")+
-    `<h4 class="h">Accounts (${ps.length})${pend?` · <span style="color:var(--gold)">${pend} awaiting approval</span>`:""}</h4><div class="tbar"><input id="uq" placeholder="Search name, username, role…" value="${esc(UQ)}"></div><div class="tw"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${pg.slice.map(x=>{const self=x.id==me.id;return `<tr><td>${esc(x.full_name)}</td><td>${esc(x.username)}</td>
-    <td>${self?ROLES[x.role]:`<select data-r="${x.id}">${opt(ROLES,x.role,1)}</select>`}</td><td>${self?"active":`<select data-s="${x.id}">${opt({pending:"pending",active:"active",disabled:"disabled"},x.status)}</select>`}</td>
-    <td>${self?"":`<button class="ghost" data-pr="${x.id}" data-pn="${esc(x.username)}">Reset password</button> <button class="ghost" data-d="${x.id}" data-pn="${esc(x.username)}">Remove</button>`}</td></tr>`}).join("")}</tbody></table></div>`+(list.length?pg.bar:'<div class="empty" style="margin-top:10px">No matching accounts.</div>');
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h4 class="h" style="margin:0">User &amp; Access Management (${ps.length})${pend?` · <span style="color:var(--gold)">${pend} awaiting approval</span>`:""}</h4>
+    </div>
+    <div class="tbar"><input id="uq" placeholder="Search name, username, role, area…" value="${esc(UQ)}"></div>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Area</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pg.slice.map(x=>{
+            const self=x.id==me.id;
+            const stColor=x.status==="active"?"#22c55e":x.status==="disabled"?"#ef4444":"#f59e0b";
+            return `<tr>
+              <td><b>${esc(x.full_name)}</b></td>
+              <td>${esc(x.username)}</td>
+              <td><span class="chip" style="font-weight:600">${esc(ROLES[x.role]||"— none —")}</span></td>
+              <td>${esc(x.area||"—")}</td>
+              <td><span class="pill" style="background:${stColor};color:#fff">${esc(x.status)}</span></td>
+              <td style="white-space:nowrap">
+                <button class="ghost" data-edit-user="${x.id}" style="padding:4px 9px;font-size:12.5px">Edit</button>
+                ${self?"":`
+                  <button class="ghost" data-pr="${x.id}" data-pn="${esc(x.username)}" style="padding:4px 9px;font-size:12.5px">Reset Password</button>
+                  <button class="ghost" data-rm-user="${x.id}" style="padding:4px 9px;font-size:12.5px;color:#ef4444">Remove</button>
+                `}
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>`+(list.length?pg.bar:'<div class="empty" style="margin-top:10px">No matching accounts.</div>')+
+    (auditList.length?`
+      <div class="box" style="margin-top:20px;padding:14px">
+        <h4 style="margin:0 0 8px;font-size:14px;color:var(--gold)">Recent Administrative Audit Trail</h4>
+        <div style="font-size:12.5px;line-height:1.6;color:var(--mu)">
+          ${auditList.map(a=>`<div><span style="font-family:monospace">${new Date(a.at).toLocaleTimeString()}:</span> <b>[${esc(a.action)}]</b> by @${esc(a.by)} — ${esc(a.details)}</div>`).join("")}
+        </div>
+      </div>`:''
+    );
+
     PAGER.bind(v,pg.st,draw);
-    const qi=$("#uq");qi.oninput=e=>{UQ=e.target.value;PAGER.reset("users");draw();const n=$("#uq");n.focus();n.setSelectionRange(UQ.length,UQ.length)};
-    v.querySelectorAll("[data-r]").forEach(e=>e.onchange=async()=>{const r=await sb.from("profiles").update({role:e.value||null}).eq("id",e.dataset.r);if(r.error)alert("Could not change role.");else find(e.dataset.r).role=e.value||null});
-    v.querySelectorAll("[data-s]").forEach(e=>e.onchange=async()=>{const p=find(e.dataset.s);if(e.value=="active"&&!p.role){alert("Assign a role first.");e.value=p.status;return}
-      const r=await sb.from("profiles").update({status:e.value}).eq("id",p.id);if(r.error)alert("Could not change status.");else p.status=e.value});
-    v.querySelectorAll("[data-pr]").forEach(e=>e.onclick=async()=>{const t=prompt("Temporary password for "+e.dataset.pn+" (min 8 characters). They must change it at next login.");if(!t)return;if(t.length<MINPW)return alert("The temporary password must be at least "+MINPW+" characters.");
-      const r=await sb.rpc("admin_reset_password",{target:e.dataset.pr,temp_pw:t});alert(r.error?"Failed: "+r.error.message:"Done. Give "+e.dataset.pn+" the temporary password.")});
-    v.querySelectorAll("[data-d]").forEach(e=>e.onclick=async()=>{if(!confirm("Permanently remove "+e.dataset.pn+"?"))return;const r=await sb.rpc("admin_delete_user",{target:e.dataset.d});if(r.error)alert(r.error.message)})};
-  draw()}
+    const qi=$("#uq");
+    qi.oninput=e=>{UQ=e.target.value;PAGER.reset("users");draw();const n=$("#uq");n.focus();n.setSelectionRange(UQ.length,UQ.length)};
+
+    v.querySelectorAll("[data-edit-user]").forEach(e=>e.onclick=()=>{
+      const p=find(e.dataset.editUser);
+      if(p)editUserModal(p,()=>users(v));
+    });
+
+    v.querySelectorAll("[data-rm-user]").forEach(e=>e.onclick=()=>{
+      const p=find(e.dataset.rmUser);
+      if(p)removeUserModal(p,()=>users(v));
+    });
+
+    v.querySelectorAll("[data-pr]").forEach(e=>e.onclick=async()=>{
+      const t=prompt("Temporary password for "+e.dataset.pn+" (min 8 characters). They must change it at next login.");
+      if(!t)return;
+      if(t.length<MINPW)return alert("The temporary password must be at least "+MINPW+" characters.");
+      const r=await sb.rpc("admin_reset_password",{target:e.dataset.pr,temp_pw:t});
+      if(r.error)alert("Failed: "+r.error.message);
+      else{
+        logAudit("RESET_PASSWORD",`Set temporary password for @${e.dataset.pn}`);
+        alert("Done. Give "+e.dataset.pn+" the temporary password.");
+      }
+    });
+  };
+  draw();
+}
 
 function backup(v){v.innerHTML=`<div class="split-half">
   <div class="box">
