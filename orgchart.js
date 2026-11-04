@@ -198,83 +198,112 @@ const PMR_ROLE={admin:"Operations Administrator",collector:"Field Sales Collecto
 const PMR_ORD={admin:0,supervisor:1,collector:2};
 const PMR_SEED=(role,name)=>(role==="supervisor"?"s:":"c:")+String(name||"").toUpperCase();
 
+/* Identity-based grouping: one person can exist under several stored keys
+   (seeded name key, profile row, legacy meta key). Merge them so the registry
+   lists each employee once. */
+const pmNorm=s=>String(s||"").toUpperCase().replace(/\s+/g," ").trim();
+function pmRole(e){
+  const raw=String((e&&e.role)||"").toLowerCase();
+  if(raw.includes("collector"))return "collector";
+  if(raw.includes("supervisor"))return "supervisor";
+  if(raw.includes("admin"))return "admin";
+  const k=String((e&&(e.key||e.emp_id))||"").toUpperCase();
+  if(k.startsWith("C:")||k.startsWith("COL-"))return "collector";
+  if(k.startsWith("S:")||k.startsWith("SUP-"))return "supervisor";
+  return null;
+}
+const pmRealKey=(e,role)=>(e&&typeof e.key==="string"&&e.key)?e.key:PMR_SEED(role,e&&e.name);
+
 async function pmRows(){
   const P=await all("profiles","id,full_name,username,role,status,area");
   let list=[];
   try{const d=window.PERSONNEL?await window.PERSONNEL.load(true):null;list=(d&&d.list)||[]}catch(e){list=[]}
-  const map=new Map();
-  list.filter(e=>e.role==="collector"||e.role==="supervisor").forEach(e=>{
-    const id=e.profile_id||("seed:"+PMR_SEED(e.role,e.name));
-    const ex=map.get(id)||{};
-    map.set(id,{
-      role:e.role,
-      profile_id:e.profile_id||ex.profile_id||null,
-      name:e.name||ex.name||"—",
-      emp_id:e.emp_id||ex.emp_id||"—",
-      area:e.area||ex.area||"",
-      supervisor:e.supervisor||ex.supervisor||"",
-      contact:e.contact||ex.contact||"",
-      status:String(e.status||ex.status||"").toUpperCase(),
-      booths:(e.booths&&e.booths.length)?e.booths:(ex.booths||[]),
-      key:e.profile_id?("p:"+e.profile_id):(e.key||ex.key||PMR_SEED(e.role,e.name))
+  const raw=[];
+  list.forEach(e=>{
+    const role=pmRole(e);
+    if(!role||role==="admin")return;
+    raw.push({role:role,profile_id:e.profile_id||null,name:e.name||"",emp_id:e.emp_id||"",area:e.area||"",
+      supervisor:e.supervisor||"",contact:e.contact||"",status:String(e.status||"").toUpperCase(),
+      booths:Array.isArray(e.booths)?e.booths:[],key:pmRealKey(e,role)});
+  });
+  P.filter(p=>pmRole(p)==="admin").forEach(p=>{
+    if(!p.id)return;
+    raw.push({role:"admin",profile_id:p.id,name:p.full_name||p.username||"",emp_id:"",area:p.area||"",
+      supervisor:"",contact:"",status:String(p.status||"").toUpperCase(),booths:[],key:null});
+  });
+  /* union records that describe the same person (same normalised name or same employee id) */
+  const par=raw.map((_,i)=>i);
+  const find=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i]}return i};
+  const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[b]=a};
+  const tok=new Map();
+  raw.forEach((r,i)=>{
+    const toks=[];
+    if(pmNorm(r.name))toks.push("n:"+pmNorm(r.name));
+    if(r.emp_id&&r.emp_id!=="—")toks.push("e:"+r.role+"|"+r.emp_id);
+    toks.forEach(t=>{if(tok.has(t))uni(tok.get(t),i);else tok.set(t,i)});
+  });
+  const groups=new Map();
+  raw.forEach((r,i)=>{const k=find(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+  const rows=[];
+  groups.forEach(refs=>{
+    const ordered=refs.filter(r=>r.profile_id).concat(refs.filter(r=>!r.profile_id));
+    const pick=f=>{for(const r of ordered){const v=r[f];if(v&&v!=="—")return v}return ""};
+    const statuses=refs.map(r=>r.status).filter(Boolean);
+    rows.push({
+      role:refs[0].role,
+      profile_id:(ordered.find(r=>r.profile_id)||{}).profile_id||null,
+      name:pick("name")||"—",
+      emp_id:pick("emp_id")||"—",
+      area:pick("area"),
+      supervisor:pick("supervisor"),
+      contact:pick("contact"),
+      /* a deliberate deactivation wins over a stale duplicate that still says ACTIVE;
+         Edit → Save writes the chosen status to every record of the person again */
+      status:statuses.includes("INACTIVE")?"INACTIVE":(statuses[0]||"ACTIVE"),
+      booths:Array.from(new Set(refs.flatMap(r=>r.booths||[]))),
+      refs:refs.map(r=>({key:r.key,role:r.role,name:r.name,profile_id:r.profile_id}))
     });
   });
-  P.filter(p=>p.role==="admin").forEach(p=>{
-    if(!p.id||map.has(p.id))return;
-    map.set(p.id,{role:"admin",profile_id:p.id,name:p.full_name||p.username||"—",emp_id:"—",area:p.area||"",supervisor:"",contact:"",status:String(p.status||"").toUpperCase(),booths:[],key:null});
-  });
-  return Array.from(map.values()).sort((a,b)=>(PMR_ORD[a.role]-PMR_ORD[b.role])||String(a.name).localeCompare(String(b.name)));
+  return rows.sort((a,b)=>(PMR_ORD[a.role]-PMR_ORD[b.role])||String(a.name).localeCompare(String(b.name)));
 }
 
-function pmDlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();return d}
-function pmClose(d){try{d.close()}catch(e){}d.remove()}
-function pmNotice(title,body,done){
-  const d=pmDlg(`<h4 style="margin:0 0 6px;font-size:15px;color:var(--gold)">${esc(title)}</h4><div style="font-size:13px;line-height:1.55;color:var(--mu)">${esc(body)}</div><div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="pmOk">OK</button></div>`);
-  d.querySelector("#pmOk").onclick=()=>{pmClose(d);if(done)done()};
-  return d;
-}
-function pmConfirm(o){
-  const d=pmDlg(`<h4 style="margin:0 0 6px;font-size:15px">${esc(o.title)}</h4><div style="font-size:13px;line-height:1.55;color:var(--mu)">${o.body||""}</div><div style="font-size:12.5px;color:#f87171;margin-top:6px;min-height:16px" id="pmErr"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="pmYes"${o.danger?' style="background:#ef4444;border-color:#ef4444;color:#fff"':""}>${esc(o.ok||"Confirm")}</button><button class="ghost" id="pmNo">${esc(o.no||"Cancel")}</button></div>`);
-  d.querySelector("#pmNo").onclick=()=>pmClose(d);
-  d.querySelector("#pmYes").onclick=async()=>{
-    const b=d.querySelector("#pmYes");b.disabled=true;
-    try{await o.onOk();pmClose(d)}catch(e){b.disabled=false;d.querySelector("#pmErr").textContent="Failed: "+((e&&e.message)||e)}
-  };
-  return d;
-}
-
-/* Saves to the EXISTING authoritative record (profiles + PERSONNEL metadata). */
+/* Saves every stored record that belongs to this person, so a merged row stays merged
+   and no duplicate appears on the next load. */
 async function pmWrite(row,f){
   if(row.role==="admin")return;
   if(!window.PERSONNEL)throw new Error("the personnel registry is unavailable");
   const meta=(await window.PERSONNEL.getMeta())||{};
   meta.personnel=meta.personnel||{};
-  const prevKey=row.key||PMR_SEED(row.role,row.name);
-  const key=row.profile_id?("p:"+row.profile_id):prevKey;
-  const base=Object.assign({},meta.personnel[key]||meta.personnel[prevKey]||{});
-  const rec=Object.assign(base,{
-    id:row.profile_id?("p:"+row.profile_id):base.id,
-    key:row.profile_id?undefined:key,
-    profile_id:row.profile_id||base.profile_id||null,
-    name:f.name!==undefined?f.name:(base.name||row.name),
-    role:row.role,
-    area:f.area!==undefined?(f.area||null):(base.area||row.area||null),
-    supervisor:f.supervisor!==undefined?(f.supervisor||null):(base.supervisor||row.supervisor||null),
-    contact:f.contact!==undefined?f.contact:(base.contact||row.contact||""),
-    emp_id:f.emp_id!==undefined?((f.emp_id&&f.emp_id!=="—")?f.emp_id:null):(base.emp_id||(row.emp_id&&row.emp_id!=="—"?row.emp_id:null)),
-    status:f.status!==undefined?f.status:(base.status||row.status||"ACTIVE")
+  let refs=(row.refs&&row.refs.length)?row.refs.slice():[];
+  if(!refs.length)refs.push({key:PMR_SEED(row.role,row.name),role:row.role,name:row.name,profile_id:row.profile_id||null});
+  refs.forEach(ref=>{
+    const key=ref.key||PMR_SEED(ref.role||row.role,ref.name||row.name);
+    if(!key)return;
+    const base=Object.assign({},meta.personnel[key]||{});
+    delete base.key;
+    meta.personnel[key]=Object.assign(base,{
+      profile_id:ref.profile_id||base.profile_id||null,
+      name:f.name!==undefined?f.name:(base.name||ref.name||row.name),
+      role:ref.role||row.role,
+      area:f.area!==undefined?(f.area||null):(base.area||null),
+      supervisor:f.supervisor!==undefined?(f.supervisor||null):(base.supervisor||null),
+      contact:f.contact!==undefined?f.contact:(base.contact||""),
+      emp_id:f.emp_id!==undefined?((f.emp_id&&f.emp_id!=="—")?f.emp_id:null):(base.emp_id||null),
+      status:f.status!==undefined?f.status:(base.status||"ACTIVE")
+    });
   });
-  meta.personnel[key]=rec;
   await window.PERSONNEL.setMeta(meta);
   window.PERSONNEL.data=null;O.data=null;
 }
-
 async function pmSave(row,f){
-  if(row.profile_id){
+  const ids=Array.from(new Set(((row.refs||[]).map(r=>r.profile_id).filter(Boolean)).concat(row.profile_id?[row.profile_id]:[])));
+  if(ids.length){
     const upd={full_name:f.name};
     if(f.area!==undefined)upd.area=f.area||null;
-    const r=await sb.from("profiles").update(upd).eq("id",row.profile_id);
-    if(r.error)throw r.error;
+    for(const id of ids){
+      const r=await sb.from("profiles").update(upd).eq("id",id);
+      if(r.error)throw r.error;
+    }
   }
   await pmWrite(row,f);
   O.data=null;

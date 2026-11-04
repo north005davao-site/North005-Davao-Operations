@@ -153,7 +153,7 @@ const PERSONNEL={
       });
     }
 
-    const list=[...regMap.values()];
+    const list=[...regMap.entries()].map(([k,e])=>Object.assign({},e,{key:k}));
     this.data={list,profiles:P||[],outlets:Ot||[],relievers:Rl||[]};
     this.at=Date.now();
     return this.data;
