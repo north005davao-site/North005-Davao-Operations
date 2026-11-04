@@ -4,7 +4,7 @@ const money=n=>"₱"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:
 const short=n=>Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const fd=s=>{if(!s)return"";const[y,m,d]=s.split("-").map(Number);return MN[m-1].slice(0,3)+" "+d+", "+y};
-const ERR={OVERPAY:"That payment is more than the remaining balance.",BEFORE_TAKEN:"A payment can't be dated before the cash advance was taken.",BELOW_PAID:"The amount can't be lower than what has already been paid."};
+const ERR={OPEN_BALANCE:"This collector already has an unpaid advance and the database still allows only one at a time. Apply the Supabase SQL fix to allow multiple advances.",OVERPAY:"That payment is more than the remaining balance.",BEFORE_TAKEN:"A payment can't be dated before the cash advance was taken.",BELOW_PAID:"The amount can't be lower than what has already been paid."};
 const emsg=e=>{const m=(e&&e.message)||"";for(const k in ERR)if(m.includes(k))return ERR[k];return(e&&e.message)||"Something went wrong. Please try again."};
 const C={view:"list",tab:"list",id:null,m:null,q:"",st:"",coll:"",sub:false};window.CAS=C;
 
@@ -243,7 +243,8 @@ async function newCA(rows,summaries,done){
     const n=String(o.collector||"").trim();
     if(!n)return;
     const k=caNorm(n);
-    if(!byName.has(k)&&!noProfile.some(m=>caNorm(m)===k))noProfile.push(n);
+    const covered=[...byName.keys()].some(pk=>pk===k||pk.includes(k)||k.includes(pk));
+    if(!covered&&!noProfile.some(m=>caNorm(m)===k))noProfile.push(n);
   });
   if(!cs||!cs.length){
     const d=dlg(`<h4 style="margin:0 0 8px">New cash advance</h4><p>There are no active collector accounts yet. Add a collector under User Management first.</p><button class="ghost" id="x">Close</button>`);
