@@ -324,8 +324,6 @@ async function users(v){
   
   const draw=()=>{
     const q=UQ.toLowerCase(),list=ps.filter(x=>!q||[x.full_name,x.username,ROLES[x.role]||"",x.status,x.area||""].join(" ").toLowerCase().includes(q)),pend=ps.filter(x=>x.status=="pending").length,pg=PAGER.paginate("users",list);
-    let auditList=[];
-    try{auditList=JSON.parse(localStorage.getItem(AUDIT_KEY)||"[]").slice(0,5)}catch(e){}
 
     v.innerHTML=(rq.length?`<h4 class="h">Password requests (${rq.length})</h4><div class="tw"><table><tbody>${rq.map(r=>`<tr><td>${esc(r.username)}</td><td>${new Date(r.created_at).toLocaleString()}</td><td><button class="ghost" data-pr="${r.user_id}" data-pn="${esc(r.username)}">Reset password</button></td></tr>`).join("")}</tbody></table></div>`:"")+
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -365,15 +363,7 @@ async function users(v){
           }).join("")}
         </tbody>
       </table>
-    </div>`+(list.length?pg.bar:'<div class="empty" style="margin-top:10px">No matching accounts.</div>')+
-    (auditList.length?`
-      <div class="box" style="margin-top:20px;padding:14px">
-        <h4 style="margin:0 0 8px;font-size:14px;color:var(--gold)">Recent Administrative Audit Trail</h4>
-        <div style="font-size:12.5px;line-height:1.6;color:var(--mu)">
-          ${auditList.map(a=>`<div><span style="font-family:monospace">${new Date(a.at).toLocaleTimeString()}:</span> <b>[${esc(a.action)}]</b> by @${esc(a.by)} — ${esc(a.details)}</div>`).join("")}
-        </div>
-      </div>`:''
-    );
+    </div>`+(list.length?pg.bar:'<div class="empty" style="margin-top:10px">No matching accounts.</div>');
 
     PAGER.bind(v,pg.st,draw);
     const qi=$("#uq");

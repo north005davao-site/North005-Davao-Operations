@@ -1,6 +1,6 @@
 (()=>{
 const NAME="ORGANIZATIONAL CHART",BUCKET="org-photos";
-const O={path:[],sub:false,busy:false,data:null,dir:"",at:0};window.ORG=O;
+const O={path:[],sub:false,busy:false,data:null,dir:"",at:0,pv:false};window.ORG=O;
 const MU=()=>window.MUNI||{};
 const areaOf=m=>m=="SAMAL"?"SAMAL":"DDN",AL={DDN:"Davao del Norte",SAMAL:"Samal"};
 const num=c=>parseInt(String(c||"").replace(/\D/g,""))||0;
@@ -107,6 +107,8 @@ const card=(o,adm)=>`<div class="pc${o.big?" big":""}${o.sm?" sm":""}" data-k="$
   <div class="tg"><small>${esc(o.role)}</small><b>${esc(o.name)}</b>${o.sub?`<em>${esc(o.sub)}</em>`:""}</div></div>`;
 
 async function org(v){
+  if(!window.__pmrGo&&typeof window.go==="function"){const g=window.go;window.go=function(n){O.pv=false;return g.apply(this,arguments)};window.__pmrGo=1}
+  if(O.pv)return pmr(v);
   subscribe();const adm=me.role=="admin";
   if(!O.data||Date.now()-O.at>30000){LOAD(v);await loadData()}
   const B=build(),path=O.path,url=k=>B.url.get(k)||null;let feat="",row="",crumb="Organization",pg=null,msg="";
@@ -165,12 +167,14 @@ async function org(v){
     }
   }
 
-  v.innerHTML=`<div class="stage${O.dir=="back"?" sback":""}" id="stg">${path.length?'<button class="back" id="bk4" aria-label="Back">←</button>':""}<div class="deco"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  v.innerHTML=`<div style="display:flex;justify-content:flex-end;margin:0 0 8px"><button class="ghost" id="pmOpen">PERSONNEL MASTER REGISTRY</button></div>
+  <div class="stage${O.dir=="back"?" sback":""}" id="stg">${path.length?'<button class="back" id="bk4" aria-label="Back">←</button>':""}<div class="deco"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <img class="olg" src="${window.LOGO||""}" alt="North-005"><div class="crumb">${esc(crumb)}</div><div class="feat">${feat}</div><div class="row">${row}</div>${msg?`<div class="omsg">${esc(msg)}</div>`:""}<div class="opg" id="opg"></div></div>
   ${adm?`<div class="chip" style="margin-top:8px">Tap 📷 on a card (or drag an image onto it) to add a photo. Click a supervisor, then a collector, to go deeper.</div>`:""}`;
   O.dir="";const stg=$("#stg");
   if(pg&&pg.bar){$("#opg").innerHTML=pg.bar;PAGER.bind($("#opg"),pg.st,()=>org(v))}
   if($("#bk4"))$("#bk4").onclick=()=>{O.dir="back";O.path.pop();org(v)};
+  if($("#pmOpen"))$("#pmOpen").onclick=()=>{O.pv=true;pmr(v)};
   v.querySelectorAll(".pc[data-nav]").forEach(c=>{const n=c.dataset.nav;if(!n)return;const goNext=()=>{stg.classList.add("go");setTimeout(()=>{O.path.push(n);PAGER.reset("org_t");org(v)},230)};c.onclick=goNext;c.onkeydown=e=>{if(e.key=="Enter")goNext()}});
   if(adm){v.querySelectorAll("[data-up]").forEach(b=>b.onclick=e=>{e.stopPropagation();const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=()=>{if(i.files[0])uploadPhoto(b.dataset.up,i.files[0],()=>org(v))};i.click()});
     v.querySelectorAll(".pc").forEach(c=>{const k=c.dataset.k;if(!k)return;c.ondragover=e=>{e.preventDefault();c.classList.add("over")};c.ondragleave=()=>c.classList.remove("over");c.ondrop=e=>{e.preventDefault();e.stopPropagation();c.classList.remove("over");const f=[...e.dataTransfer.files].find(x=>/^image\//.test(x.type));if(f)uploadPhoto(k,f,()=>org(v))}});
@@ -186,6 +190,167 @@ function areaDlg(s,done){const d=document.createElement("dialog");d.innerHTML=`<
     s.area=a;
     if(window.PERSONNEL)await window.PERSONNEL.savePersonnel({name:s.name,role:"supervisor",area:a,status:"ACTIVE",profile_id:s.profile_id});
     close();done()}}
+
+/* ============ PERSONNEL MASTER REGISTRY (inside the Organizational Chart module) ============ */
+/* Uses the existing authoritative records: profiles (User & Access Management) + the
+   PERSONNEL engine. No separate employee database and no duplicated records. */
+const PMR_ROLE={admin:"Operations Administrator",collector:"Field Sales Collector",supervisor:"Field Sales Supervisor"};
+const PMR_ORD={admin:0,supervisor:1,collector:2};
+const PMR_SEED=(role,name)=>(role==="supervisor"?"s:":"c:")+String(name||"").toUpperCase();
+
+async function pmRows(){
+  const P=await all("profiles","id,full_name,username,role,status,area");
+  let list=[];
+  try{const d=window.PERSONNEL?await window.PERSONNEL.load(true):null;list=(d&&d.list)||[]}catch(e){list=[]}
+  const map=new Map();
+  list.filter(e=>e.role==="collector"||e.role==="supervisor").forEach(e=>{
+    const id=e.profile_id||("seed:"+PMR_SEED(e.role,e.name));
+    const ex=map.get(id)||{};
+    map.set(id,{
+      role:e.role,
+      profile_id:e.profile_id||ex.profile_id||null,
+      name:e.name||ex.name||"—",
+      emp_id:e.emp_id||ex.emp_id||"—",
+      area:e.area||ex.area||"",
+      supervisor:e.supervisor||ex.supervisor||"",
+      contact:e.contact||ex.contact||"",
+      status:String(e.status||ex.status||"").toUpperCase(),
+      booths:(e.booths&&e.booths.length)?e.booths:(ex.booths||[]),
+      key:e.profile_id?("p:"+e.profile_id):(e.key||ex.key||PMR_SEED(e.role,e.name))
+    });
+  });
+  P.filter(p=>p.role==="admin").forEach(p=>{
+    if(!p.id||map.has(p.id))return;
+    map.set(p.id,{role:"admin",profile_id:p.id,name:p.full_name||p.username||"—",emp_id:"—",area:p.area||"",supervisor:"",contact:"",status:String(p.status||"").toUpperCase(),booths:[],key:null});
+  });
+  return Array.from(map.values()).sort((a,b)=>(PMR_ORD[a.role]-PMR_ORD[b.role])||String(a.name).localeCompare(String(b.name)));
+}
+
+function pmDlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();return d}
+function pmClose(d){try{d.close()}catch(e){}d.remove()}
+function pmNotice(title,body,done){
+  const d=pmDlg(`<h4 style="margin:0 0 6px;font-size:15px;color:var(--gold)">${esc(title)}</h4><div style="font-size:13px;line-height:1.55;color:var(--mu)">${esc(body)}</div><div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="pmOk">OK</button></div>`);
+  d.querySelector("#pmOk").onclick=()=>{pmClose(d);if(done)done()};
+  return d;
+}
+function pmConfirm(o){
+  const d=pmDlg(`<h4 style="margin:0 0 6px;font-size:15px">${esc(o.title)}</h4><div style="font-size:13px;line-height:1.55;color:var(--mu)">${o.body||""}</div><div style="font-size:12.5px;color:#f87171;margin-top:6px;min-height:16px" id="pmErr"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="pmYes"${o.danger?' style="background:#ef4444;border-color:#ef4444;color:#fff"':""}>${esc(o.ok||"Confirm")}</button><button class="ghost" id="pmNo">${esc(o.no||"Cancel")}</button></div>`);
+  d.querySelector("#pmNo").onclick=()=>pmClose(d);
+  d.querySelector("#pmYes").onclick=async()=>{
+    const b=d.querySelector("#pmYes");b.disabled=true;
+    try{await o.onOk();pmClose(d)}catch(e){b.disabled=false;d.querySelector("#pmErr").textContent="Failed: "+((e&&e.message)||e)}
+  };
+  return d;
+}
+
+/* Saves to the EXISTING authoritative record (profiles + PERSONNEL metadata). */
+async function pmWrite(row,f){
+  if(row.role==="admin")return;
+  if(!window.PERSONNEL)throw new Error("the personnel registry is unavailable");
+  const meta=(await window.PERSONNEL.getMeta())||{};
+  meta.personnel=meta.personnel||{};
+  const prevKey=row.key||PMR_SEED(row.role,row.name);
+  const key=row.profile_id?("p:"+row.profile_id):prevKey;
+  const base=Object.assign({},meta.personnel[key]||meta.personnel[prevKey]||{});
+  const rec=Object.assign(base,{
+    id:row.profile_id?("p:"+row.profile_id):base.id,
+    key:row.profile_id?undefined:key,
+    profile_id:row.profile_id||base.profile_id||null,
+    name:f.name!==undefined?f.name:(base.name||row.name),
+    role:row.role,
+    area:f.area!==undefined?(f.area||null):(base.area||row.area||null),
+    supervisor:f.supervisor!==undefined?(f.supervisor||null):(base.supervisor||row.supervisor||null),
+    contact:f.contact!==undefined?f.contact:(base.contact||row.contact||""),
+    emp_id:f.emp_id!==undefined?((f.emp_id&&f.emp_id!=="—")?f.emp_id:null):(base.emp_id||(row.emp_id&&row.emp_id!=="—"?row.emp_id:null)),
+    status:f.status!==undefined?f.status:(base.status||row.status||"ACTIVE")
+  });
+  meta.personnel[key]=rec;
+  await window.PERSONNEL.setMeta(meta);
+  window.PERSONNEL.data=null;O.data=null;
+}
+
+async function pmSave(row,f){
+  if(row.profile_id){
+    const upd={full_name:f.name};
+    if(f.area!==undefined)upd.area=f.area||null;
+    const r=await sb.from("profiles").update(upd).eq("id",row.profile_id);
+    if(r.error)throw r.error;
+  }
+  await pmWrite(row,f);
+  O.data=null;
+}
+
+function pmEdit(row,done){
+  const isAdm=row.role==="admin";
+  const d=pmDlg(`<h4 style="margin:0 0 4px;font-size:15px">Edit personnel</h4>
+    <p style="margin:0 0 12px;font-size:12.5px;color:var(--mu);line-height:1.55">You are modifying the existing employee record of <b style="color:var(--tx)">${esc(row.name)}</b> — ${esc(PMR_ROLE[row.role])}. The record is shared with User &amp; Access Management and the Organizational Chart.</p>
+    <label>Employee ID</label><input id="pmId" value="${esc(row.emp_id==="—"?"":row.emp_id)}">
+    <label>Full name</label><input id="pmName" value="${esc(row.name)}">
+    <label>Role</label><input id="pmRole" value="${esc(PMR_ROLE[row.role])}" disabled>
+    <label>Area</label><select id="pmArea"><option value="">— none —</option><option value="DDN"${row.area==="DDN"?" selected":""}>Davao del Norte (DDN)</option><option value="SAMAL"${row.area==="SAMAL"?" selected":""}>Samal</option></select>
+    ${isAdm?"":`<label>Supervisor</label><input id="pmSup" value="${esc(row.supervisor||"")}">`}
+    <label>Contact</label><input id="pmContact" value="${esc(row.contact||"")}">
+    ${isAdm?"":`<label>Status</label><select id="pmStatus"><option value="ACTIVE"${row.status==="ACTIVE"?" selected":""}>ACTIVE</option><option value="INACTIVE"${row.status==="INACTIVE"?" selected":""}>INACTIVE</option></select>`}
+    <div style="font-size:12.5px;color:#f87171;min-height:16px;margin-top:6px" id="pmMsg"></div>
+    <div style="display:flex;gap:8px"><button class="btn" id="pmSaveBtn">Save</button><button class="ghost" id="pmCancel">Cancel</button></div>`);
+  const q=id=>d.querySelector("#"+id);
+  const dirty=()=>[q("pmId"),q("pmName"),q("pmArea"),q("pmSup"),q("pmContact"),q("pmStatus")].some(i=>i&&!i.disabled&&i.value!==(i.defaultValue||""));
+  q("pmCancel").onclick=()=>{
+    if(!dirty()){pmClose(d);return}
+    pmConfirm({title:"Discard changes?",body:"You have unsaved changes in this personnel record. Do you want to discard them?",ok:"Discard",no:"Keep editing",onOk:()=>{pmClose(d)}});
+  };
+  q("pmSaveBtn").onclick=async()=>{
+    const msg=q("pmMsg");msg.textContent="";
+    const name=(q("pmName").value||"").trim();
+    if(!name){msg.textContent="Full name is required.";return}
+    const btn=q("pmSaveBtn");btn.disabled=true;
+    try{
+      await pmSave(row,{name:name,emp_id:(q("pmId").value||"").trim()||"—",area:q("pmArea").value||"",supervisor:isAdm?(row.supervisor||""):(q("pmSup").value||"").trim(),contact:(q("pmContact").value||"").trim(),status:isAdm?row.status:q("pmStatus").value});
+      pmClose(d);
+      pmNotice("Saved","Changes to "+name+" were saved successfully.",done);
+    }catch(e){btn.disabled=false;msg.textContent="Could not save: "+((e&&e.message)||e)}
+  };
+}
+
+function pmDelete(row,done){
+  pmConfirm({
+    title:"Remove from Personnel Master Registry?",
+    danger:true,ok:"Delete",
+    body:`<p style="margin:0 0 8px">You are about to remove <b style="color:var(--tx)">${esc(row.name)}</b> — ${esc(PMR_ROLE[row.role])}${row.emp_id&&row.emp_id!=="—"?" ("+esc(row.emp_id)+")":""}${row.area?" · "+esc(AL[row.area]||row.area):""} — from the registry.</p><p style="margin:0">The login account, Organizational Chart position, documents and attendance history are <b>kept</b>. Only this registry entry is deactivated, and it can be set back to ACTIVE through Edit.</p>`,
+    onOk:async()=>{
+      await pmWrite(row,{status:"INACTIVE"});
+      pmNotice("Deleted",row.name+" was removed from the Personnel Master Registry. The login account and related records were kept.",done);
+    }
+  });
+}
+
+async function pmr(v){
+  const adm=me.role==="admin";
+  const rows=await pmRows();
+  v.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div><h4 class="h" style="margin:0">PERSONNEL MASTER REGISTRY (${rows.length})</h4>
+      <p style="margin:4px 0 0;font-size:12.5px;color:var(--mu)">Operations Administrator · Field Sales Collector · Field Sales Supervisor</p></div>
+      <button class="ghost" id="pmBack">← Organizational Chart</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Employee ID</th><th>Name</th><th>Role</th><th>Area</th><th>Supervisor</th><th>Contact</th><th>Status</th>${adm?"<th>Actions</th>":""}</tr></thead>
+      <tbody>${rows.map((r,i)=>`<tr>
+        <td style="font-family:monospace">${esc(r.emp_id||"—")}</td>
+        <td><b>${esc(r.name)}</b>${r.booths&&r.booths.length?` <small style="color:var(--mu)">(${r.booths.length} booths)</small>`:""}</td>
+        <td><span class="chip" style="font-weight:600">${esc(PMR_ROLE[r.role])}</span></td>
+        <td>${esc(r.area?(AL[r.area]||r.area):"—")}</td>
+        <td>${esc(r.supervisor||"—")}</td>
+        <td>${esc(r.contact||"—")}</td>
+        <td><span class="pill" style="background:${r.status==="ACTIVE"?"#22c55e":(r.status==="INACTIVE"?"#ef4444":"#f59e0b")};color:#fff">${esc(r.status||"—")}</span></td>
+        ${adm?`<td style="white-space:nowrap"><button class="ghost" data-pm-edit="${i}" style="padding:4px 9px;font-size:12.5px">Edit</button>${r.role==="admin"?'<span style="font-size:11.5px;color:var(--mu)">Delete in User &amp; Access</span>':`<button class="ghost" data-pm-del="${i}" style="padding:4px 9px;font-size:12.5px;color:#ef4444">Delete</button>`}</td>`:""}
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${rows.length?"":'<div class="empty" style="margin-top:10px">No personnel records yet.</div>'}`;
+  v.querySelector("#pmBack").onclick=()=>{O.pv=false;org(v)};
+  if(!adm)return;
+  v.querySelectorAll("[data-pm-edit]").forEach(b=>b.onclick=()=>pmEdit(rows[+b.dataset.pmEdit],()=>pmr(v)));
+  v.querySelectorAll("[data-pm-del]").forEach(b=>b.onclick=()=>pmDelete(rows[+b.dataset.pmDel],()=>pmr(v)));
+}
 
 window.MODS=Object.assign(window.MODS||{},{[NAME]:org});
 })();
