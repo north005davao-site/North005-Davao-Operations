@@ -24,6 +24,7 @@ const pill=r=>{
   return'<span class="pill" style="background:#ef4444;color:#fff;font-weight:600">Unpaid</span>';
 };
 const caRef=r=>"CA-"+(r.id&&r.id.length>8?r.id.slice(0,8).toUpperCase():String(r.id||"001").padStart(3,"0"));
+const caNorm=s=>String(s||"").trim().replace(/\s+/g," ").toUpperCase();
 
 function dlg(html){const d=document.createElement("dialog");d.innerHTML=html;document.body.appendChild(d);d.showModal();d.close_=()=>{d.close();d.remove()};return d}
 function subscribe(){if(C.sub)return;C.sub=true;let tm;const f=()=>{clearTimeout(tm);tm=setTimeout(()=>{if(!QUIETW()&&cur=="CASH ADVANCE (C.A) & PAYMENTS"&&!document.querySelector("dialog[open]"))go(cur)},500)};
@@ -34,11 +35,12 @@ function calcCollectorSummaries(rows){
   const byCol=new Map();
   rows.forEach(r=>{
     const name=r.collector_name||"Unknown";
+    const key=caNorm(name);
     const amt=Number(r.amount||0),paid=Number(r.paid||0),rem=Math.max(0,amt-paid);
-    if(!byCol.has(name)){
-      byCol.set(name,{name,collector_id:r.collector_id,totalAdv:0,totalPaid:0,remBalance:0,count:0,openCount:0,paidCount:0,advances:[]});
+    if(!byCol.has(key)){
+      byCol.set(key,{name,collector_id:r.collector_id,totalAdv:0,totalPaid:0,remBalance:0,count:0,openCount:0,paidCount:0,advances:[]});
     }
-    const c=byCol.get(name);
+    const c=byCol.get(key);
     c.totalAdv+=amt;
     c.totalPaid+=paid;
     c.remBalance+=rem;
@@ -66,7 +68,7 @@ async function list(v){
   const nPaid=rows.filter(isPaid).length;
   
   // Collect unique collectors for filter dropdown
-  const collectorNames=[...new Set(rows.map(r=>r.collector_name).filter(Boolean))].sort();
+  const collectorNames=[...summaries.values()].map(c=>c.name).sort();
 
   v.innerHTML=`
   <div class="kpis" style="margin-bottom:14px">
@@ -106,7 +108,7 @@ async function list(v){
     const q=C.q.toLowerCase();
     const f=rows.filter(r=>{
       const matchQ=!q||(r.collector_name+" "+(r.note||"")+" "+caRef(r)).toLowerCase().includes(q);
-      const matchColl=!C.coll||r.collector_name===C.coll;
+      const matchColl=!C.coll||caNorm(r.collector_name)===caNorm(C.coll);
       const st=statusOf(r);
       const matchSt=!C.st||
         (C.st==="open"&&open(r))||
@@ -135,7 +137,7 @@ async function list(v){
           <tbody>
             ${pg.slice.map(r=>{
               const rem=Math.max(0,Number(r.amount||0)-Number(r.paid||0));
-              const colSum=summaries.get(r.collector_name);
+              const colSum=summaries.get(caNorm(r.collector_name));
               const colBal=colSum?colSum.remBalance:rem;
               return `<tr data-i="${r.id}" style="cursor:pointer">
                 <td><span class="chip" style="font-family:monospace;font-weight:700">${esc(caRef(r))}</span></td>
@@ -220,30 +222,31 @@ async function list(v){
 }
 
 async function newCA(rows,summaries,done){
-  // Retrieve collectors dynamically from the authoritative Personnel Master Registry!
-  let cs=[];
-  if(window.PERSONNEL&&typeof window.PERSONNEL.getCollectors==="function"){
-    cs=await window.PERSONNEL.getCollectors(true);
-  } else {
-    // Fallback: Query active collectors from profiles + registry_outlets
-    const[P,Ot]=await Promise.all([
-      sb.from("profiles").select("id,full_name,username,role,status").eq("role","collector").eq("status","active").order("full_name"),
-      sb.from("registry_outlets").select("collector").not("collector","is",null)
-    ]);
-    const map=new Map();
-    (P.data||[]).forEach(p=>map.set((p.full_name||p.username).toUpperCase(),{id:p.id,name:p.full_name||p.username,profile_id:p.id}));
-    // Ensure Charlie, Nelson and any registry collectors exist
-    (Ot.data||[]).forEach(o=>{
-      const n=String(o.collector||"").trim();
-      if(n&&!map.has(n.toUpperCase())){
-        map.set(n.toUpperCase(),{id:"col:"+n.toLowerCase(),name:n,profile_id:null});
-      }
-    });
-    cs=[...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
-  }
-
+  // Collectors MUST map to a real profile UUID: cash_advances.collector_id is a uuid column.
+  const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const[{data:profiles},{data:Ot}]=await Promise.all([
+    sb.from("profiles").select("id,full_name,username,role,status").eq("role","collector").order("full_name"),
+    sb.from("registry_outlets").select("collector").not("collector","is",null)
+  ]);
+  const byName=new Map();
+  (profiles||[]).forEach(p=>{
+    if(!p.id||!UUID.test(p.id))return;
+    const nm=String(p.full_name||p.username||"").trim();
+    if(!nm)return;
+    byName.set(caNorm(nm),{id:p.id,name:nm,active:String(p.status||"").toLowerCase()==="active"});
+  });
+  let cs=[...byName.values()].filter(c=>c.active).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!cs.length)cs=[...byName.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  // Registry collectors without a login account cannot be referenced (no uuid) — list them instead of inventing ids
+  const noProfile=[];
+  (Ot||[]).forEach(o=>{
+    const n=String(o.collector||"").trim();
+    if(!n)return;
+    const k=caNorm(n);
+    if(!byName.has(k)&&!noProfile.some(m=>caNorm(m)===k))noProfile.push(n);
+  });
   if(!cs||!cs.length){
-    const d=dlg(`<h4 style="margin:0 0 8px">New cash advance</h4><p>There are no active collectors in the Personnel Master Registry yet.</p><button class="ghost" id="x">Close</button>`);
+    const d=dlg(`<h4 style="margin:0 0 8px">New cash advance</h4><p>There are no active collector accounts yet. Add a collector under User Management first.</p><button class="ghost" id="x">Close</button>`);
     d.querySelector("#x").onclick=d.close_;return;
   }
 
@@ -253,13 +256,14 @@ async function newCA(rows,summaries,done){
   const d=dlg(`
     <h4 style="margin:0 0 6px">New cash advance</h4>
     <p style="font-size:12.5px;color:var(--mu);margin:0 0 10px">Collectors can receive multiple cash advances across different dates. Previous balances are tracked independently.</p>
+    ${noProfile.length?"<p style=\"font-size:12px;color:#f59e0b;margin:0 0 10px\">Not listed — no login account yet: "+esc(noProfile.join(", "))+"</p>":""}
     <label>Collector</label>
     <select id="nc">
       ${cs.map(c=>{
-        const sum=colBals.get(c.name);
+        const sum=colBals.get(caNorm(c.name));
         const remBal=sum?sum.remBalance:0;
         const note=remBal>0?` — has unpaid balance (${money(remBal)})`:` — No outstanding balance`;
-        return `<option value="${c.id}" data-name="${esc(c.name)}" data-pid="${c.profile_id||""}">${esc(c.name)}${note}</option>`;
+        return `<option value="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}${note}</option>`;
       }).join("")}
     </select>
     <div class="g2" style="margin-top:10px">
@@ -278,18 +282,19 @@ async function newCA(rows,summaries,done){
   d.querySelector("#nx").onclick=d.close_;
   d.querySelector("#ns").onclick=async()=>{
     const m=d.querySelector("#nm"),sel=d.querySelector("#nc"),opt=sel.options[sel.selectedIndex];
-    const id=sel.value,name=opt.dataset.name,pid=opt.dataset.pid;
+    const id=sel.value,name=opt.dataset.name;
     const a=parseFloat(d.querySelector("#na").value),dt=d.querySelector("#nd").value;
 
     if(!(a>0))return m.textContent="Please enter a valid advance amount greater than 0.";
     if(!dt)return m.textContent="Please choose the date taken.";
+    if(!UUID.test(id))return m.textContent="This collector has no login account with a profile ID, so the advance cannot be saved.";
 
     m.style.color="var(--gold)";m.textContent="Saving cash advance…";
     
     // Multiple advances per collector are explicitly allowed!
     // Insert new independent transaction record into cash_advances
     const payload={
-      collector_id: pid || id,
+      collector_id: id,
       collector_name: name,
       taken_on: dt,
       amount: a,
@@ -320,7 +325,7 @@ async function detail(v){
 
   // Level 2: Calculate collector's overall running balance across all their advances
   const allRows=AllCA.data||[];
-  const collectorAdvances=allRows.filter(x=>x.collector_name===r.collector_name);
+  const collectorAdvances=allRows.filter(x=>caNorm(x.collector_name)===caNorm(r.collector_name));
   const colTotalAdv=collectorAdvances.reduce((s,x)=>s+Number(x.amount||0),0);
   const colTotalPaid=collectorAdvances.reduce((s,x)=>s+Number(x.paid||0),0);
   const colOverallRem=Math.max(0,colTotalAdv-colTotalPaid);
